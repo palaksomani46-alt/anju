@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitives ---
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { 
+      return isSignedIn() && request.auth.token.email == 'somanimayank723@gmail.com'; 
+    }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isVerified() { return request.auth.token.email_verified == true; }
+
+    // --- Validation Helpers ---
+
+    function isValidUser(data) {
+      return data.uid == request.auth.uid 
+        && data.email == request.auth.token.email
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.role in ['student', 'admin']
+        && (data.role == 'admin' ? data.email == 'somanimayank723@gmail.com' : true)
+        && data.createdAt == request.time
+        && data.keys().hasAll(['uid', 'email', 'name', 'role', 'createdAt'])
+        && data.keys().size() <= 8; // Allowing phone and enrolledCourses as optional
+    }
+
+    function isValidCourse(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.description is string && data.description.size() > 0 && data.description.size() <= 5000
+        && data.price is number && data.price >= 0
+        && data.createdBy == request.auth.uid
+        && data.createdAt is timestamp
+        // && data.thumbnail is string // Optional thumbnail
+        && data.keys().hasAll(['title', 'description', 'price', 'createdBy', 'createdAt']);
+    }
+
+    function isValidEnrollment(data) {
+      return data.userId == request.auth.uid
+        && data.userName is string && data.userName.size() > 0
+        && data.userEmail is string && data.userEmail.size() > 0
+        && data.phone is string && data.phone.size() > 0
+        && data.courseId is string && data.courseId.size() <= 128
+        && data.courseTitle is string && data.courseTitle.size() > 0
+        && data.status in ['pending', 'approved', 'rejected']
+        && data.paymentScreenshot is string && data.paymentScreenshot.matches('^https://.*')
+        && data.transactionId is string && data.transactionId.size() > 0 && data.transactionId.size() <= 100
+        && data.createdAt == request.time
+        && data.keys().hasAll(['userId', 'userName', 'userEmail', 'phone', 'courseId', 'courseTitle', 'status', 'paymentScreenshot', 'transactionId', 'createdAt'])
+        && data.keys().size() == 10;
+    }
+
+    // --- match Blocks ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if (isOwner(userId) || isAdmin()) && (
+        // Action: Update Profile (Student)
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone'])) ||
+        // Action: Admin Enrollment Update
+        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['enrolledCourses', 'role']))
+      );
+    }
+
+    match /courses/{courseId} {
+      allow read: if true; // Courses are public
+      allow create: if isAdmin() && isValidCourse(incoming());
+      allow update: if isAdmin() && isValidCourse(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /enrollments/{enrollmentId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidEnrollment(incoming()) && incoming().status == 'pending';
+      allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+    }
+  }
+}

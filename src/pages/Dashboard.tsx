@@ -1,0 +1,636 @@
+import React, { useEffect, useState } from 'react';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  arrayUnion, 
+  onSnapshot, 
+  addDoc, 
+  serverTimestamp,
+  deleteDoc,
+  orderBy
+} from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useAuth } from '../App';
+import { 
+  Plus, 
+  Settings, 
+  CheckCircle, 
+  XCircle, 
+  Clock, 
+  ExternalLink, 
+  LayoutDashboard, 
+  BookOpen, 
+  Users, 
+  CreditCard,
+  Trash2,
+  Edit2,
+  Eye,
+  Calendar,
+  MessageCircle,
+  Search,
+  Filter,
+  Mail
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
+import { formatPrice, formatDate } from '../lib/utils';
+
+export default function Dashboard() {
+  const { user, profile, isAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'enrollments' : 'my_courses');
+  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [siteUsers, setSiteUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Admin Filter States
+  const [courseSearch, setCourseSearch] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  
+  // Admin Form States
+  const [showAddCourse, setShowAddCourse] = useState(false);
+  const [courseForm, setCourseForm] = useState({ title: '', description: '', price: '', thumbnail: '' });
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Real-time enrollments
+    const enrollQuery = isAdmin ? 
+      query(collection(db, 'enrollments'), orderBy('createdAt', 'desc')) : 
+      query(collection(db, 'enrollments'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+
+    const unsubEnroll = onSnapshot(enrollQuery, (snapshot) => {
+      setEnrollments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    });
+
+    // Fetch all courses for admin
+    const unsubCourses = onSnapshot(collection(db, 'courses'), (snapshot) => {
+      setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    // Fetch all users for admin
+    let unsubUsers = () => {};
+    if (isAdmin) {
+      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        setSiteUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+    }
+
+    return () => {
+      unsubEnroll();
+      unsubCourses();
+      unsubUsers();
+    };
+  }, [user, isAdmin]);
+
+  const handleApprove = async (enrollment: any) => {
+    try {
+      // 1. Update enrollment status
+      await updateDoc(doc(db, 'enrollments', enrollment.id), { status: 'approved' });
+      
+      // 2. Add course to user's profile
+      const userRef = doc(db, 'users', enrollment.userId);
+      await updateDoc(userRef, {
+        enrolledCourses: arrayUnion(enrollment.courseId)
+      });
+
+      toast.success("Enrollment approved!");
+      
+      // WhatsApp notify logic
+      const message = `Hello ${enrollment.userName}, your enrollment for ${enrollment.courseTitle} is approved. You can now access your course on the dashboard.`;
+      const waLink = `https://wa.me/${enrollment.phone || '8660888419'}?text=${encodeURIComponent(message)}`;
+      window.open(waLink, '_blank');
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      await updateDoc(doc(db, 'enrollments', id), { status: 'rejected' });
+      toast.error("Enrollment rejected");
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleAddCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, 'courses'), {
+        ...courseForm,
+        price: Number(courseForm.price),
+        createdBy: user?.uid,
+        createdAt: serverTimestamp(),
+      });
+      setShowAddCourse(false);
+      setCourseForm({ title: '', description: '', price: '', thumbnail: '' });
+      toast.success("Course added successfully");
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
+  const filteredCourses = courses.filter(course => {
+    const matchesTitle = course.title.toLowerCase().includes(courseSearch.toLowerCase());
+    const price = Number(course.price);
+    const matchesMin = minPrice === '' || price >= Number(minPrice);
+    const matchesMax = maxPrice === '' || price <= Number(maxPrice);
+    return matchesTitle && matchesMin && matchesMax;
+  });
+
+  const handleDeleteCourse = async (id: string) => {
+    // For fast verification and reliability in iFrames, we skip window.confirm 
+    // and use a toast-based immediate action or a simple try-catch.
+    const toastId = toast.loading("Deleting course...");
+    try {
+      await deleteDoc(doc(db, 'courses', id));
+      toast.success("Course deleted successfully", { id: toastId });
+    } catch (error: any) {
+      toast.error("Failed to delete: " + error.message, { id: toastId });
+    }
+  };
+
+  if (loading) return (
+    <div className="h-96 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-10 pb-20">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="space-y-1">
+          <h1 className="text-4xl font-black text-slate-900 leading-tight">
+            Hero's <span className="text-primary italic">Workspace</span>
+          </h1>
+          <p className="text-slate-500 font-medium">Welcome back, {profile?.name}</p>
+        </div>
+
+        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+          {isAdmin ? (
+            <>
+              <button 
+                onClick={() => setActiveTab('enrollments')}
+                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'enrollments' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+              >
+                <CreditCard className="h-4 w-4" />
+                <span>Enrollments</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('manage_courses')}
+                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'manage_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+              >
+                <BookOpen className="h-4 w-4" />
+                <span>Courses</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('manage_users')}
+                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'manage_users' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+              >
+                <Users className="h-4 w-4" />
+                <span>Users</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                onClick={() => setActiveTab('my_courses')}
+                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'my_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+              >
+                <BookOpen className="h-4 w-4" />
+                <span>My Courses</span>
+              </button>
+              <button 
+                onClick={() => setActiveTab('requests')}
+                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'requests' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+              >
+                <Clock className="h-4 w-4" />
+                <span>Status</span>
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+
+      <main>
+        <AnimatePresence mode="wait">
+          {activeTab === 'enrollments' && isAdmin && (
+            <motion.div 
+              key="enrollments"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-bold text-slate-800">Enrollment Requests</h2>
+                  <p className="text-sm text-slate-500 font-medium">Monitor who is purchasing which course.</p>
+                </div>
+                <div className="bg-emerald-50 text-emerald-700 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-emerald-100">
+                  {enrollments.filter(e => e.status === 'pending').length} Actions Pending
+                </div>
+              </div>
+
+              <div className="grid gap-6">
+                {enrollments.map((enroll) => (
+                  <div key={enroll.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 group hover:shadow-md transition-shadow">
+                    <div className="flex gap-6 items-center">
+                      <div className="h-16 w-16 bg-slate-50 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 p-1 relative">
+                        <img src={enroll.paymentScreenshot} className="h-full w-full object-cover rounded-xl" alt="Proof" referrerPolicy="no-referrer" />
+                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Eye className="h-4 w-4 text-white" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase tracking-wider">
+                            Enrollment Req
+                          </span>
+                          {enroll.status === 'pending' && enroll.createdAt && (Date.now() - (enroll.createdAt?.toMillis?.() || 0) < 300000) && (
+                            <span className="bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded animate-pulse">NEW</span>
+                          )}
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-lg">
+                          {enroll.userName} <span className="text-slate-400 font-normal">wants to buy</span> {enroll.courseTitle}
+                        </h3>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium text-slate-500">
+                          <span className="flex items-center gap-1.5">
+                            <Mail className="h-3.5 w-3.5" />
+                            {enroll.userEmail}
+                          </span>
+                          {enroll.phone && (
+                            <>
+                              <span>•</span>
+                              <span className="text-emerald-600 font-bold flex items-center gap-1.5">
+                                <MessageCircle className="h-3.5 w-3.5" />
+                                {enroll.phone}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mt-1 flex items-center gap-2">
+                          <CreditCard className="h-3 w-3" />
+                          TXN ID: {enroll.transactionId}
+                          <span>•</span>
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(enroll.createdAt)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                      {enroll.status === 'pending' ? (
+                        <>
+                          <button 
+                            onClick={() => handleApprove(enroll)}
+                            className="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            <span>Approve</span>
+                          </button>
+                          <button 
+                            onClick={() => handleReject(enroll.id)}
+                            className="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-slate-100 text-slate-600 px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-red-50 hover:text-red-600 transition-colors"
+                          >
+                            <XCircle className="h-4 w-4" />
+                            <span>Reject</span>
+                          </button>
+                        </>
+                      ) : (
+                        <div className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center space-x-2 ${enroll.status === 'approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                          {enroll.status === 'approved' ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                          <span className="capitalize">{enroll.status}</span>
+                        </div>
+                      )}
+                      
+                      <button 
+                        onClick={() => window.open(enroll.paymentScreenshot, '_blank')}
+                        className="p-3 text-slate-400 hover:text-primary transition-colors bg-slate-50 rounded-xl"
+                        title="View Full Screenshot"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'manage_courses' && isAdmin && (
+            <motion.div 
+              key="manage_courses"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-8"
+            >
+              <div className="flex justify-between items-center bg-slate-900 p-8 rounded-[2.5rem] text-white">
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold">Manage Catalog</h2>
+                  <p className="text-slate-400 text-sm font-medium">Create and manage your course offerings.</p>
+                </div>
+                <button 
+                  onClick={() => setShowAddCourse(true)}
+                  className="bg-emerald-500 text-white p-4 rounded-2xl shadow-lg hover:scale-105 transition-transform"
+                >
+                  <Plus className="h-6 w-6" />
+                </button>
+              </div>
+
+              {/* Filtering Controls */}
+              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input 
+                      type="text"
+                      placeholder="Search courses by title..."
+                      value={courseSearch}
+                      onChange={(e) => setCourseSearch(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center bg-slate-50 border border-slate-100 rounded-2xl px-4 py-2">
+                      <Filter className="h-4 w-4 text-slate-400 mr-2" />
+                      <input 
+                        type="number"
+                        placeholder="Min Price"
+                        value={minPrice}
+                        onChange={(e) => setMinPrice(e.target.value)}
+                        className="bg-transparent focus:outline-none text-sm w-24"
+                      />
+                      <span className="text-slate-300 mx-2">|</span>
+                      <input 
+                        type="number"
+                        placeholder="Max Price"
+                        value={maxPrice}
+                        onChange={(e) => setMaxPrice(e.target.value)}
+                        className="bg-transparent focus:outline-none text-sm w-24"
+                      />
+                    </div>
+                    {(courseSearch || minPrice || maxPrice) && (
+                      <button 
+                        onClick={() => {
+                          setCourseSearch('');
+                          setMinPrice('');
+                          setMaxPrice('');
+                        }}
+                        className="text-xs font-bold text-red-500 hover:text-red-600 transition-colors px-2"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest px-2">
+                  Showing {filteredCourses.length} of {courses.length} courses
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-6">
+                {filteredCourses.map(course => (
+                  <div key={course.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex items-center gap-6 group">
+                    <div className="h-20 w-32 rounded-2xl overflow-hidden shadow-sm">
+                      <img src={course.thumbnail || `https://picsum.photos/seed/${course.id}/400/300`} className="h-full w-full object-cover" alt="" />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <h3 className="font-bold text-slate-800 line-clamp-1">{course.title}</h3>
+                      <div className="text-lg font-black text-primary">{formatPrice(course.price)}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button className="p-3 bg-slate-50 text-slate-400 hover:text-primary rounded-xl transition-colors">
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteCourse(course.id)}
+                        className="p-3 bg-slate-50 text-slate-400 hover:text-red-500 rounded-xl transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'manage_users' && isAdmin && (
+            <motion.div 
+              key="manage_users"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-slate-800">Site Users</h2>
+                <div className="bg-slate-100 text-slate-600 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-slate-200">
+                  {siteUsers.length} Registered
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                {siteUsers.map((siteUser) => (
+                  <div key={siteUser.id} className="bg-white p-5 rounded-2xl border border-slate-100 flex items-center justify-between group hover:border-emerald-100 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center font-bold text-sm">
+                        {siteUser.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-800 flex items-center gap-2">
+                          {siteUser.name}
+                          {siteUser.role === 'admin' && (
+                            <span className="text-[10px] bg-slate-900 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">Admin</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-500">{siteUser.email}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs font-bold text-slate-400 mb-1">COURSES</div>
+                      <div className="flex -space-x-2">
+                        {siteUser.enrolledCourses?.length > 0 ? (
+                          siteUser.enrolledCourses.slice(0, 3).map((_: any, i: number) => (
+                            <div key={i} className="w-6 h-6 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center">
+                              <BookOpen className="w-2.5 h-2.5 text-emerald-600" />
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-slate-300 italic">None</span>
+                        )}
+                        {siteUser.enrolledCourses?.length > 3 && (
+                          <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-slate-500">
+                            +{siteUser.enrolledCourses.length - 3}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'my_courses' && !isAdmin && (
+            <motion.div 
+              key="my_courses"
+              className="grid md:grid-cols-2 gap-8"
+            >
+              {courses.filter(c => profile?.enrolledCourses?.includes(c.id)).map(course => (
+                <div key={course.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 space-y-6 shadow-sm hover:shadow-xl transition-all">
+                  <div className="relative aspect-video rounded-3xl overflow-hidden">
+                    <img src={course.thumbnail || `https://picsum.photos/seed/${course.id}/800/600`} className="w-full h-full object-cover" alt="" />
+                    <div className="absolute inset-0 bg-primary/20 backdrop-blur-[2px] opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button className="bg-white text-primary px-6 py-3 rounded-2xl font-bold shadow-xl flex items-center space-x-2">
+                        <BookOpen className="h-5 w-5" />
+                        <span>Continue Learning</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-start">
+                      <h3 className="text-xl font-bold text-slate-800">{course.title}</h3>
+                      <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                        Active
+                      </div>
+                    </div>
+                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                      <div className="bg-emerald-500 h-full w-1/3 rounded-full"></div>
+                    </div>
+                    <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      <span>35% Complete</span>
+                      <span>Next: Module 4</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {(!profile?.enrolledCourses || profile.enrolledCourses.length === 0) && (
+                <div className="col-span-2 text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
+                  <BookOpen className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-400 font-bold mb-4">You haven't enrolled in any courses yet</p>
+                  <button onClick={() => window.scrollTo(0, 0)} className="text-primary font-bold hover:underline">Explore Courses</button>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === 'requests' && !isAdmin && (
+            <motion.div key="requests" className="space-y-6">
+              <h2 className="text-2xl font-bold text-slate-800">Enrollment Requests</h2>
+              <div className="grid gap-6">
+                {enrollments.map(enroll => (
+                  <div key={enroll.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-4 rounded-2xl ${enroll.status === 'approved' ? 'bg-emerald-50 text-emerald-600' : enroll.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
+                        {enroll.status === 'approved' ? <CheckCircle /> : enroll.status === 'pending' ? <Clock /> : <XCircle />}
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="font-bold text-slate-800">{enroll.courseTitle}</h3>
+                        <div className="text-xs text-slate-400">Request ID: {enroll.id.slice(-8).toUpperCase()} • {formatDate(enroll.createdAt)}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-black uppercase tracking-widest ${enroll.status === 'approved' ? 'text-emerald-600' : enroll.status === 'pending' ? 'text-amber-600' : 'text-red-600'}`}>
+                        {enroll.status}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      {/* Add Course Modal */}
+      <AnimatePresence>
+        {showAddCourse && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl p-10 relative"
+            >
+              <button 
+                onClick={() => setShowAddCourse(false)}
+                className="absolute top-8 right-8 text-slate-400 hover:text-slate-600"
+              >
+                <XCircle />
+              </button>
+              
+              <h2 className="text-3xl font-black text-slate-900 mb-8">Add New Course</h2>
+              
+              <form onSubmit={handleAddCourse} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Course Title</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={courseForm.title}
+                    onChange={(e) => setCourseForm({...courseForm, title: e.target.value})}
+                    placeholder="e.g. Advanced Marketing Mastery" 
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all font-medium"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Price (INR)</label>
+                  <input 
+                    type="number" 
+                    required 
+                    value={courseForm.price}
+                    onChange={(e) => setCourseForm({...courseForm, price: e.target.value})}
+                    placeholder="2999" 
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all font-medium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Description</label>
+                  <textarea 
+                    required 
+                    rows={4}
+                    value={courseForm.description}
+                    onChange={(e) => setCourseForm({...courseForm, description: e.target.value})}
+                    placeholder="Describe what students will learn..." 
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all font-medium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Thumbnail URL</label>
+                  <input 
+                    type="text" 
+                    value={courseForm.thumbnail}
+                    onChange={(e) => setCourseForm({...courseForm, thumbnail: e.target.value})}
+                    placeholder="https://image-url.com/photo.jpg" 
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all font-medium"
+                  />
+                  <p className="text-[10px] text-slate-400 px-2 italic">Leave empty to use a placeholder image.</p>
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full gradient-btn py-4 rounded-2xl text-white font-bold shadow-xl shadow-emerald-100 active:scale-95 transition-all"
+                >
+                  Create Course
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

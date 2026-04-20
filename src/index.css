@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #10b981; /* emerald-500 */
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f0fdf4; /* green-50 */
+  --color-accent: #059669; /* emerald-600 */
+  --color-background: #fdfefd;
+  --color-surface: #ffffff;
+  
+  --font-sans: "Inter", "system-ui", "-apple-system", sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-slate-800 font-sans antialiased;
+  }
+}
+
+.glass {
+  @apply bg-white/80 backdrop-blur-md border-b border-green-100;
+}
+
+.gradient-btn {
+  @apply bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg shadow-green-200 transition-all duration-300;
+}
+
