@@ -156,9 +156,9 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 onClick={() => setAccepted(!accepted)}
               >
                 I have read and accepted the{' '}
-                <Link to="/privacy" className="text-emerald-600 font-bold hover:underline" onClick={(e) => e.stopPropagation()}>Privacy Policy</Link>
+                <Link to="/privacy" className="text-emerald-600 font-bold hover:underline" onClick={(e) => { e.stopPropagation(); onClose(); }}>Privacy Policy</Link>
                 {' '}and{' '}
-                <Link to="/terms" className="text-emerald-600 font-bold hover:underline" onClick={(e) => e.stopPropagation()}>Terms of Use</Link>
+                <Link to="/terms" className="text-emerald-600 font-bold hover:underline" onClick={(e) => { e.stopPropagation(); onClose(); }}>Terms of Use</Link>
               </label>
             </div>
 

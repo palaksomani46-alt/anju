@@ -14,6 +14,8 @@
           "type": "array",
           "items": { "type": "string" }
         },
+        "status": { "type": "string", "enum": ["online", "offline"] },
+        "lastSeen": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "name", "email", "role", "createdAt"]
@@ -35,21 +37,23 @@
     },
     "Enrollment": {
       "title": "Enrollment",
-      "description": "Course enrollment application with payment proof",
+      "description": "Course enrollment application with payment proof Handshake",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "userId": { "type": "string" },
         "courseId": { "type": "string" },
         "courseTitle": { "type": "string" },
+        "amount": { "type": "string" },
         "userName": { "type": "string" },
         "userEmail": { "type": "string" },
-        "paymentScreenshot": { "type": "string", "format": "uri" },
+        "userPhone": { "type": "string" },
+        "proofUrl": { "type": "string", "description": "Base64 compressed image" },
         "transactionId": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["userId", "courseId", "paymentScreenshot", "transactionId", "status", "createdAt"]
+      "required": ["userId", "courseId", "amount", "userPhone", "proofUrl", "transactionId", "status", "createdAt"]
     }
   },
   "firestore": {

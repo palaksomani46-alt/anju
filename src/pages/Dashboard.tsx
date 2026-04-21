@@ -7,6 +7,7 @@ import {
   doc, 
   updateDoc, 
   arrayUnion, 
+  arrayRemove,
   onSnapshot, 
   addDoc, 
   serverTimestamp,
@@ -33,11 +34,12 @@ import {
   MessageCircle,
   Search,
   Filter,
-  Mail
+  Mail,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { formatPrice, formatDate } from '../lib/utils';
+import { formatPrice, formatDate, cn } from '../lib/utils';
 
 export default function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
@@ -46,6 +48,7 @@ export default function Dashboard() {
   const [courses, setCourses] = useState<any[]>([]);
   const [siteUsers, setSiteUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   // Admin Filter States
   const [courseSearch, setCourseSearch] = useState('');
@@ -101,19 +104,22 @@ export default function Dashboard() {
       });
 
       toast.success("Enrollment approved!");
-      
-      // WhatsApp notify logic
-      const message = `Hello ${enrollment.userName}, your enrollment for ${enrollment.courseTitle} is approved. You can now access your course on the dashboard.`;
-      const waLink = `https://wa.me/${enrollment.phone || '8660888419'}?text=${encodeURIComponent(message)}`;
-      window.open(waLink, '_blank');
     } catch (error: any) {
       toast.error(error.message);
     }
   };
 
-  const handleReject = async (id: string) => {
+  const handleReject = async (enrollment: any) => {
     try {
-      await updateDoc(doc(db, 'enrollments', id), { status: 'rejected' });
+      // 1. Update enrollment status
+      await updateDoc(doc(db, 'enrollments', enrollment.id), { status: 'rejected' });
+      
+      // 2. Remove course from user's profile if it was there
+      const userRef = doc(db, 'users', enrollment.userId);
+      await updateDoc(userRef, {
+        enrolledCourses: arrayRemove(enrollment.courseId)
+      });
+
       toast.error("Enrollment rejected");
     } catch (error: any) {
       toast.error(error.message);
@@ -165,57 +171,67 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-10 pb-20">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="space-y-1">
-          <h1 className="text-4xl font-black text-slate-900 leading-tight">
+      <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+        <div className="space-y-1 w-full lg:w-auto">
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight">
             Hero's <span className="text-primary italic">Workspace</span>
           </h1>
-          <p className="text-slate-500 font-medium">Welcome back, {profile?.name}</p>
+          <p className="text-slate-500 font-medium text-sm md:text-base">Welcome back, {profile?.name}</p>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-          {isAdmin ? (
-            <>
-              <button 
-                onClick={() => setActiveTab('enrollments')}
-                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'enrollments' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
-              >
-                <CreditCard className="h-4 w-4" />
-                <span>Enrollments</span>
-              </button>
-              <button 
-                onClick={() => setActiveTab('manage_courses')}
-                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'manage_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
-              >
-                <BookOpen className="h-4 w-4" />
-                <span>Courses</span>
-              </button>
-              <button 
-                onClick={() => setActiveTab('manage_users')}
-                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'manage_users' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
-              >
-                <Users className="h-4 w-4" />
-                <span>Users</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <button 
-                onClick={() => setActiveTab('my_courses')}
-                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'my_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
-              >
-                <BookOpen className="h-4 w-4" />
-                <span>My Courses</span>
-              </button>
-              <button 
-                onClick={() => setActiveTab('requests')}
-                className={`flex items-center space-x-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'requests' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
-              >
-                <Clock className="h-4 w-4" />
-                <span>Status</span>
-              </button>
-            </>
-          )}
+        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 w-full lg:w-auto overflow-x-auto no-scrollbar scroll-smooth">
+          <div className="flex min-w-max">
+            {isAdmin ? (
+              <>
+                <button 
+                  onClick={() => setActiveTab('enrollments')}
+                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all relative ${activeTab === 'enrollments' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span>Enrollments</span>
+                  {enrollments.filter(e => e.status === 'pending').length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] items-center justify-center text-white font-black">
+                        {enrollments.filter(e => e.status === 'pending').length}
+                      </span>
+                    </span>
+                  )}
+                </button>
+                <button 
+                  onClick={() => setActiveTab('manage_courses')}
+                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'manage_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span>Courses</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('manage_users')}
+                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'manage_users' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                >
+                  <Users className="h-4 w-4" />
+                  <span>Users</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setActiveTab('my_courses')}
+                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'my_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span>My Courses</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('requests')}
+                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'requests' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                >
+                  <Clock className="h-4 w-4" />
+                  <span>Status</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -241,80 +257,56 @@ export default function Dashboard() {
 
               <div className="grid gap-6">
                 {enrollments.map((enroll) => (
-                  <div key={enroll.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 group hover:shadow-md transition-shadow">
-                    <div className="flex gap-6 items-center">
-                      <div className="h-16 w-16 bg-slate-50 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 p-1 relative">
-                        <img src={enroll.paymentScreenshot} className="h-full w-full object-cover rounded-xl" alt="Proof" referrerPolicy="no-referrer" />
-                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div key={enroll.id} className="bg-white p-5 md:p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6 group hover:shadow-md transition-shadow">
+                    <div className="flex gap-4 md:gap-6 items-center w-full md:w-auto overflow-hidden">
+                      <div 
+                        onClick={() => setSelectedImage(enroll.proofUrl || enroll.paymentScreenshot)}
+                        className="h-14 w-14 md:h-16 md:w-16 bg-slate-50 rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 p-1 relative cursor-zoom-in shrink-0"
+                      >
+                        <img src={enroll.proofUrl || enroll.paymentScreenshot} className="h-full w-full object-cover rounded-xl" alt="Proof" referrerPolicy="no-referrer" />
+                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center">
                           <Eye className="h-4 w-4 text-white" />
                         </div>
                       </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase tracking-wider">
-                            Enrollment Req
+                      <div className="space-y-1 overflow-hidden">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap">
+                            Req
                           </span>
-                          {enroll.status === 'pending' && enroll.createdAt && (Date.now() - (enroll.createdAt?.toMillis?.() || 0) < 300000) && (
-                            <span className="bg-emerald-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded animate-pulse">NEW</span>
-                          )}
+                          <span className="text-[10px] font-black text-slate-600 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wider">
+                            {enroll.amount || '₹0'}
+                          </span>
                         </div>
-                        <h3 className="font-bold text-slate-800 text-lg">
-                          {enroll.userName} <span className="text-slate-400 font-normal">wants to buy</span> {enroll.courseTitle}
+                        <h3 className="font-bold text-slate-800 text-base md:text-lg leading-tight truncate">
+                          {enroll.userName}
                         </h3>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium text-slate-500">
-                          <span className="flex items-center gap-1.5">
-                            <Mail className="h-3.5 w-3.5" />
-                            {enroll.userEmail}
-                          </span>
-                          {enroll.phone && (
-                            <>
-                              <span>•</span>
-                              <span className="text-emerald-600 font-bold flex items-center gap-1.5">
-                                <MessageCircle className="h-3.5 w-3.5" />
-                                {enroll.phone}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div className="text-[10px] uppercase font-bold tracking-widest text-slate-400 mt-1 flex items-center gap-2">
-                          <CreditCard className="h-3 w-3" />
-                          TXN ID: {enroll.transactionId}
-                          <span>•</span>
-                          <Calendar className="h-3 w-3" />
-                          {formatDate(enroll.createdAt)}
-                        </div>
+                        <p className="text-xs text-slate-400 font-medium truncate">Buying: {enroll.courseTitle}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                      {enroll.status === 'pending' ? (
-                        <>
-                          <button 
-                            onClick={() => handleApprove(enroll)}
-                            className="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors"
-                          >
-                            <CheckCircle className="h-4 w-4" />
-                            <span>Approve</span>
-                          </button>
-                          <button 
-                            onClick={() => handleReject(enroll.id)}
-                            className="flex-1 md:flex-none flex items-center justify-center space-x-2 bg-slate-100 text-slate-600 px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-red-50 hover:text-red-600 transition-colors"
-                          >
-                            <XCircle className="h-4 w-4" />
-                            <span>Reject</span>
-                          </button>
-                        </>
-                      ) : (
-                        <div className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center space-x-2 ${enroll.status === 'approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                          {enroll.status === 'approved' ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                          <span className="capitalize">{enroll.status}</span>
-                        </div>
-                      )}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-slate-50">
+                      <div className="flex items-center gap-2 flex-1 md:flex-none">
+                        <button 
+                          onClick={() => handleApprove(enroll)}
+                          disabled={enroll.status === 'approved'}
+                          className={`flex-1 md:flex-none flex items-center justify-center space-x-2 px-4 md:px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${enroll.status === 'approved' ? 'bg-emerald-50 text-emerald-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-lg shadow-emerald-100'}`}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          <span>{enroll.status === 'approved' ? 'Approved' : 'Approve'}</span>
+                        </button>
+                        <button 
+                          onClick={() => handleReject(enroll)}
+                          disabled={enroll.status === 'rejected'}
+                          className={`flex-1 md:flex-none flex items-center justify-center space-x-2 px-4 md:px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${enroll.status === 'rejected' ? 'bg-red-50 text-red-400 cursor-not-allowed' : 'bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600'}`}
+                        >
+                          <XCircle className="h-4 w-4" />
+                          <span>{enroll.status === 'rejected' ? 'Rejected' : 'Reject'}</span>
+                        </button>
+                      </div>
                       
                       <button 
                         onClick={() => window.open(enroll.paymentScreenshot, '_blank')}
-                        className="p-3 text-slate-400 hover:text-primary transition-colors bg-slate-50 rounded-xl"
-                        title="View Full Screenshot"
+                        className="hidden sm:flex p-3 text-slate-400 hover:text-primary transition-colors bg-slate-50 rounded-xl"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
@@ -399,15 +391,15 @@ export default function Dashboard() {
 
               <div className="grid md:grid-cols-2 gap-6">
                 {filteredCourses.map(course => (
-                  <div key={course.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex items-center gap-6 group">
-                    <div className="h-20 w-32 rounded-2xl overflow-hidden shadow-sm">
+                  <div key={course.id} className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 flex flex-col sm:flex-row items-center gap-4 md:gap-6 group">
+                    <div className="h-24 w-full sm:h-20 sm:w-32 rounded-2xl overflow-hidden shadow-sm shrink-0">
                       <img src={course.thumbnail || `https://picsum.photos/seed/${course.id}/400/300`} className="h-full w-full object-cover" alt="" />
                     </div>
-                    <div className="flex-1 space-y-1">
+                    <div className="flex-1 space-y-1 text-center sm:text-left w-full">
                       <h3 className="font-bold text-slate-800 line-clamp-1">{course.title}</h3>
                       <div className="text-lg font-black text-primary">{formatPrice(course.price)}</div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-50 w-full sm:w-auto justify-center sm:justify-end">
                       <button className="p-3 bg-slate-50 text-slate-400 hover:text-primary rounded-xl transition-colors">
                         <Edit2 className="h-4 w-4" />
                       </button>
@@ -441,23 +433,32 @@ export default function Dashboard() {
 
               <div className="grid gap-4">
                 {siteUsers.map((siteUser) => (
-                  <div key={siteUser.id} className="bg-white p-5 rounded-2xl border border-slate-100 flex items-center justify-between group hover:border-emerald-100 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center font-bold text-sm">
-                        {siteUser.name?.charAt(0).toUpperCase()}
+                  <div key={siteUser.id} className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group hover:border-emerald-100 transition-colors">
+                    <div className="flex items-center gap-4 w-full md:w-auto">
+                      <div className="relative shrink-0">
+                        <div className="h-10 w-10 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center font-bold text-sm">
+                          {siteUser.name?.charAt(0).toUpperCase()}
+                        </div>
+                        <div className={cn(
+                          "absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white",
+                          siteUser.status === 'online' ? "bg-emerald-500" : "bg-slate-300"
+                        )} title={siteUser.status || 'offline'} />
                       </div>
-                      <div>
-                        <div className="font-bold text-slate-800 flex items-center gap-2">
-                          {siteUser.name}
+                      <div className="overflow-hidden">
+                        <div className="font-bold text-slate-800 flex flex-wrap items-center gap-2">
+                          <span className="truncate">{siteUser.name}</span>
                           {siteUser.role === 'admin' && (
                             <span className="text-[10px] bg-slate-900 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">Admin</span>
                           )}
+                          <span className="text-[9px] font-medium text-slate-400">
+                            {siteUser.status === 'online' ? 'Active Now' : `Last: ${formatDate(siteUser.lastSeen)}`}
+                          </span>
                         </div>
-                        <div className="text-xs text-slate-500">{siteUser.email}</div>
+                        <div className="text-xs text-slate-500 truncate">{siteUser.email}</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-slate-400 mb-1">COURSES</div>
+                    <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4 pt-4 md:pt-0 border-t md:border-t-0 border-slate-50">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Courses</div>
                       <div className="flex -space-x-2">
                         {siteUser.enrolledCourses?.length > 0 ? (
                           siteUser.enrolledCourses.slice(0, 3).map((_: any, i: number) => (
@@ -537,10 +538,24 @@ export default function Dashboard() {
                       <div className="space-y-1">
                         <h3 className="font-bold text-slate-800">{enroll.courseTitle}</h3>
                         <div className="text-xs text-slate-400">Request ID: {enroll.id.slice(-8).toUpperCase()} • {formatDate(enroll.createdAt)}</div>
+                        {enroll.status === 'approved' && (
+                          <div className="text-[10px] font-bold text-emerald-600 animate-pulse">
+                            🎉 Access Granted! Our team will contact you in 24 hours for onboarding.
+                          </div>
+                        )}
+                        {enroll.status === 'rejected' && (
+                          <div className="text-[10px] font-bold text-red-500">
+                             ❌ Request Rejected. Please contact support if you have already paid.
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-sm font-black uppercase tracking-widest ${enroll.status === 'approved' ? 'text-emerald-600' : enroll.status === 'pending' ? 'text-amber-600' : 'text-red-600'}`}>
+                      <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
+                        enroll.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm shadow-emerald-50' : 
+                        enroll.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-100' : 
+                        'bg-red-50 text-red-600 border-red-100'
+                      }`}>
                         {enroll.status}
                       </div>
                     </div>
@@ -629,6 +644,62 @@ export default function Dashboard() {
               </form>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Full Screen Image Viewer Modal */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSelectedImage(null)}
+            className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-xl flex items-center justify-center p-4 md:p-10 cursor-zoom-out"
+          >
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-[110]"
+              onClick={(e) => { e.stopPropagation(); setSelectedImage(null); }}
+            >
+              <X className="h-6 w-6" />
+            </motion.button>
+
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="relative max-w-5xl w-full max-h-[90vh] flex flex-col items-center gap-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="relative w-full h-full rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl bg-black">
+                <img 
+                  src={selectedImage} 
+                  className="w-full h-full object-contain" 
+                  alt="Full Proof" 
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <a 
+                  href={selectedImage} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto bg-white text-slate-900 px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-50 hover:text-emerald-600 transition-all uppercase tracking-widest text-[10px]"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open Original
+                </a>
+                <button 
+                  onClick={() => setSelectedImage(null)}
+                  className="w-full sm:w-auto bg-white/10 text-white px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-white/20 transition-all uppercase tracking-widest text-[10px]"
+                >
+                  Close Viewer
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

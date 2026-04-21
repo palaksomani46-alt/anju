@@ -6,10 +6,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /test/connection {
+      allow read: if true;
+    }
+
     // --- Primitives ---
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
-      return isSignedIn() && request.auth.token.email == 'somanimayank723@gmail.com'; 
+      return isSignedIn() && (
+        request.auth.token.email == 'somanimayank723@gmail.com' || 
+        request.auth.token.email == 'palaksomani46@gmail.com' ||
+        request.auth.token.email == 'somanianju46@gmail.com'
+      ); 
     }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
@@ -24,10 +32,8 @@ service cloud.firestore {
         && data.email == request.auth.token.email
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
         && data.role in ['student', 'admin']
-        && (data.role == 'admin' ? data.email == 'somanimayank723@gmail.com' : true)
-        && data.createdAt == request.time
-        && data.keys().hasAll(['uid', 'email', 'name', 'role', 'createdAt'])
-        && data.keys().size() <= 8; // Allowing phone and enrolledCourses as optional
+        && (data.role == 'admin' ? (data.email == 'somanimayank723@gmail.com' || data.email == 'palaksomani46@gmail.com' || data.email == 'somanianju46@gmail.com') : true)
+        && data.createdAt == request.time;
     }
 
     function isValidCourse(data) {
@@ -44,15 +50,14 @@ service cloud.firestore {
       return data.userId == request.auth.uid
         && data.userName is string && data.userName.size() > 0
         && data.userEmail is string && data.userEmail.size() > 0
-        && data.phone is string && data.phone.size() > 0
+        && data.userPhone is string && data.userPhone.size() > 0
         && data.courseId is string && data.courseId.size() <= 128
         && data.courseTitle is string && data.courseTitle.size() > 0
+        && data.amount is string && data.amount.size() > 0
         && data.status in ['pending', 'approved', 'rejected']
-        && data.paymentScreenshot is string && data.paymentScreenshot.matches('^https://.*')
-        && data.transactionId is string && data.transactionId.size() > 0 && data.transactionId.size() <= 100
-        && data.createdAt == request.time
-        && data.keys().hasAll(['userId', 'userName', 'userEmail', 'phone', 'courseId', 'courseTitle', 'status', 'paymentScreenshot', 'transactionId', 'createdAt'])
-        && data.keys().size() == 10;
+        && data.proofUrl is string && data.proofUrl.size() > 10
+        && data.transactionId is string && data.transactionId.size() > 0 && data.transactionId.size() <= 150
+        && data.createdAt == request.time;
     }
 
     // --- match Blocks ---
@@ -62,8 +67,10 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create: if isOwner(userId) && isValidUser(incoming());
       allow update: if (isOwner(userId) || isAdmin()) && (
+        // Action: Presence Update
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'lastSeen'])) ||
         // Action: Update Profile (Student)
-        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone'])) ||
+        (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'status', 'lastSeen'])) ||
         // Action: Admin Enrollment Update
         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['enrolledCourses', 'role']))
       );

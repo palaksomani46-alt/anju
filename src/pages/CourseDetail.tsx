@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import { db, storage } from '../lib/firebase';
 import { useAuth } from '../App';
 import { motion, AnimatePresence } from 'motion/react';
@@ -14,10 +14,11 @@ import {
   MessageCircle,
   Clock,
   AlertCircle,
-  Users
+  Users,
+  Zap
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatPrice } from '../lib/utils';
+import { formatPrice, compressImage } from '../lib/utils';
 
 export default function CourseDetail() {
   const { id } = useParams();
@@ -106,54 +107,39 @@ export default function CourseDetail() {
       return;
     }
 
-    // Check for existing pending enrollment to prevent duplicates
-    const checkId = toast.loading("Checking for existing requests...");
-    try {
-      const q = query(
-        collection(db, 'enrollments'), 
-        where('userId', '==', user.uid), 
-        where('courseId', '==', id),
-        where('status', '==', 'pending')
-      );
-      const existing = await getDocs(q);
-      if (!existing.empty) {
-        toast.error("You already have a pending request for this course.", { id: checkId });
-        return;
-      }
-    } catch (err) {
-      console.error(err);
-    }
-
-    toast.loading("Uploading payment proof...", { id: checkId });
+    const checkId = toast.loading("Processing Digital Handshake...");
     setUploading(true);
     
     try {
-      // Fast path: Start upload immediately
-      const storageRef = ref(storage, `payments/${user.uid}_${id}_${Date.now()}`);
-      const uploadTask = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(uploadTask.ref);
+      // 1. Digital Proof Compression (The "Upload" alternative)
+      toast.loading("Compressing Digital Proof...", { id: checkId });
+      const base64Proof = await compressImage(file);
 
-      toast.loading("Notifying admin...", { id: checkId });
+      toast.loading("Instant Alert: Notifying Admin Panel...", { id: checkId });
 
-      // Create enrollment entry
-      await addDoc(collection(db, 'enrollments'), {
-        userId: user.uid,
+      // 2. Creating the Database Record (New hand-shake schema)
+      const enrollmentData = {
+        userId: user.uid, // Required for security but keeping user fields as requested
         userName: enrollmentInfo.name,
         userEmail: enrollmentInfo.email,
-        phone: enrollmentInfo.phone,
+        userPhone: enrollmentInfo.phone,
         courseId: id,
         courseTitle: course.title,
-        paymentScreenshot: downloadURL,
-        transactionId,
+        amount: formatPrice(course.price),
+        transactionId: transactionId.trim(),
+        proofUrl: base64Proof, // Compressed screenshot stored as Base64 string
         status: 'pending',
         createdAt: serverTimestamp(),
-      });
+      };
 
-      toast.success("Submitted successfully!", { id: checkId });
+      await addDoc(collection(db, 'enrollments'), enrollmentData);
+
+      toast.success("Lightning Proof Sent! Handshake Complete.", { id: checkId });
       setStep(4);
       
     } catch (error: any) {
-      toast.error(error.message || "Failed to submit. Please try again.", { id: checkId });
+      console.error("Submission error:", error);
+      toast.error(error.message || "Failed. Try again.", { id: checkId });
     } finally {
       setUploading(false);
     }
@@ -166,10 +152,10 @@ export default function CourseDetail() {
   );
 
   return (
-    <div className="max-w-5xl mx-auto space-y-12 pb-20">
+    <div className="max-w-5xl mx-auto space-y-8 md:space-y-12 pb-20 px-4 md:px-0">
       <button 
         onClick={() => navigate('/')}
-        className="flex items-center space-x-2 text-slate-500 hover:text-primary transition-colors"
+        className="flex items-center space-x-2 text-slate-500 hover:text-primary transition-colors pt-4"
       >
         <ArrowLeft className="h-4 w-4" />
         <span className="text-sm font-bold uppercase tracking-widest">Back to Courses</span>
@@ -177,7 +163,7 @@ export default function CourseDetail() {
 
       <div className="flex flex-col lg:flex-row gap-12">
         <div className="flex-[1.5] space-y-8">
-          <div className="relative aspect-video rounded-[2.5rem] overflow-hidden shadow-2xl skew-x-1 lg:skew-x-0">
+          <div className="relative aspect-video rounded-[2rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl">
             <img 
               src={course.thumbnail || `https://picsum.photos/seed/${course.id}/1200/800`} 
               alt={course.title}
@@ -185,11 +171,11 @@ export default function CourseDetail() {
               referrerPolicy="no-referrer"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent"></div>
-            <div className="absolute bottom-10 left-10 text-white">
-              <div className="flex items-center space-x-2 bg-emerald-500 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-4 w-fit">
+            <div className="absolute bottom-6 left-6 md:bottom-10 md:left-10 text-white pr-6">
+              <div className="flex items-center space-x-2 bg-emerald-500 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-3 md:mb-4 w-fit">
                 High Demand
               </div>
-              <h1 className="text-4xl font-black">{course.title}</h1>
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-black">{course.title}</h1>
             </div>
           </div>
 
@@ -248,10 +234,6 @@ export default function CourseDetail() {
                       Enroll Now
                     </button>
                   )}
-                  
-                  <p className="text-center text-xs text-slate-400 font-medium">
-                    30-Day Money-Back Guarantee
-                  </p>
                 </motion.div>
               )}
 
@@ -323,28 +305,29 @@ export default function CourseDetail() {
                   exit={{ opacity: 0, y: -20 }}
                   className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-50 space-y-8"
                 >
-                  <div className="flex items-center gap-4 py-3 px-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                    <ShieldCheck className="h-6 w-6 text-emerald-600" />
-                    <div className="text-sm font-bold text-emerald-800">Secure Manual Payment</div>
+                  <div className="flex items-center gap-3 py-2 md:py-3 px-3 md:px-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                    <ShieldCheck className="h-5 w-5 md:h-6 md:w-6 text-emerald-600 shrink-0" />
+                    <div className="text-xs md:text-sm font-bold text-emerald-800">Secure Manual Payment</div>
                   </div>
 
-                  <div className="space-y-6">
-                    <h3 className="font-bold text-slate-800 text-sm italic">Transfer to our official account:</h3>
-                    <div className="space-y-4 text-sm bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-200">
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-500">UPI ID:</span>
+                  <div className="space-y-4 md:space-y-6">
+                    <h3 className="font-bold text-slate-800 text-xs md:text-sm italic">Transfer to our official account:</h3>
+                    <div className="space-y-3 md:space-y-4 text-xs md:text-sm bg-slate-50 p-5 md:p-6 rounded-2xl border border-dashed border-slate-200">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                        <span className="text-slate-500">Payment Number:</span>
                         <div className="flex items-center gap-2">
-                           <span className="font-black text-slate-800">anju@upi</span>
-                           <button onClick={() => { navigator.clipboard.writeText('anju@upi'); toast.success('UPI copied!'); }} className="text-[10px] bg-slate-200 px-2 py-1 rounded-md hover:bg-slate-300">Copy</button>
+                           <span className="font-black text-slate-800 text-base md:text-lg tracking-wider">8660888419</span>
+                           <button onClick={() => { navigator.clipboard.writeText('8660888419'); toast.success('Number copied!'); }} className="text-[9px] md:text-[10px] bg-slate-200 px-2 py-1 rounded-md hover:bg-slate-300">Copy</button>
                         </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Bank:</span>
-                        <span className="font-bold text-slate-800">SBI Bank</span>
-                      </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <span className="text-slate-500">Amount:</span>
-                        <span className="font-black text-emerald-600 text-lg">{formatPrice(course.price)}</span>
+                        <span className="font-black text-emerald-600 text-base md:text-lg">{formatPrice(course.price)}</span>
+                      </div>
+                      <div className="pt-4 mt-2 border-t border-slate-200">
+                        <p className="text-xs text-slate-600 font-bold leading-relaxed text-center">
+                          Pay through PhonePe, Google Pay, or Paytm on this number.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -363,24 +346,59 @@ export default function CourseDetail() {
                     </div>
 
                     <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Payment Proof</label>
-                    <label className="flex flex-col items-center justify-center w-full h-32 px-4 transition bg-white border-2 border-slate-200 border-dashed rounded-2xl appearance-none cursor-pointer hover:border-emerald-400 focus:outline-none">
-                      <span className="flex items-center space-x-2">
-                        <Upload className="w-6 h-6 text-slate-400" />
-                        <span className="font-medium text-sm text-slate-600 truncate max-w-[150px]">
-                          {file ? file.name : 'Choose Screenshot'}
-                        </span>
-                      </span>
-                      <input type="file" required accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-                    </label>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Payment Proof Screenshot</label>
+                    <motion.label 
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      className={`flex flex-col items-center justify-center w-full h-32 px-4 transition-all border-2 border-dashed rounded-2xl appearance-none cursor-pointer focus:outline-none ${file ? 'bg-emerald-50 border-emerald-500 shadow-inner' : 'bg-white border-slate-200 hover:border-emerald-400'}`}
+                    >
+                      <div className="flex flex-col items-center space-y-2">
+                        {file ? (
+                          <div className="flex items-center space-x-2 text-emerald-600">
+                             <CheckCircle2 className="w-8 h-8" />
+                             <span className="font-bold text-sm truncate max-w-[200px]">{file.name}</span>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload className="w-8 h-8 text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                            <span className="font-bold text-sm text-slate-500">Tap to Upload Screenshot</span>
+                            <span className="text-[10px] text-slate-400 uppercase font-black">JPG, PNG supported</span>
+                          </>
+                        )}
+                      </div>
+                      <input type="file" required accept="image/*" className="hidden" onChange={(e) => {
+                        const selected = e.target.files?.[0];
+                        if (selected && selected.size > 5 * 1024 * 1024) {
+                          toast.error("Image too large (max 5MB)");
+                          return;
+                        }
+                        setFile(selected || null);
+                      }} />
+                    </motion.label>
                     </div>
 
                     <button 
                       type="submit"
                       disabled={uploading}
-                      className="w-full gradient-btn py-4 rounded-2xl text-white font-bold shadow-xl shadow-emerald-100 active:scale-95 transition-all disabled:opacity-50"
+                      className="w-full h-14 bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 flex items-center justify-center rounded-2xl text-white font-black text-lg shadow-2xl shadow-emerald-200 active:scale-[0.98] hover:brightness-110 transition-all disabled:opacity-70 disabled:cursor-not-allowed group overflow-hidden relative"
                     >
-                      {uploading ? 'Verifying...' : 'Submit Verification'}
+                      {uploading ? (
+                        <div className="flex items-center space-x-3 relative z-10">
+                          <svg className="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span className="tracking-tighter">TELEPORTING DATA...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20 scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-500"></div>
+                          <div className="flex items-center space-x-3 relative z-10 uppercase tracking-tight">
+                             <span>Submit Verification</span>
+                             <Zap className="h-5 w-5 fill-white text-white group-hover:animate-bounce" />
+                          </div>
+                        </>
+                      )}
                     </button>
                     
                     <button 

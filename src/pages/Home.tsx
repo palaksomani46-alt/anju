@@ -31,14 +31,14 @@ export default function Home() {
   return (
     <div className="space-y-24 pb-20">
       {/* Hero Section */}
-      <section className="relative flex min-h-[320px] bg-gradient-to-br from-green-50 via-emerald-50 to-white px-10 items-center overflow-hidden py-12 lg:py-24">
-        <div className="container mx-auto flex flex-col lg:flex-row items-center gap-12 relative">
+      <section className="relative flex min-h-[320px] bg-gradient-to-br from-green-50 via-emerald-50 to-white px-6 md:px-12 items-center overflow-hidden py-12 lg:py-24">
+        <div className="container mx-auto flex flex-col lg:flex-row items-center gap-12 relative text-center lg:text-left">
           <div className="flex-1 z-10">
             <motion.h1 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="text-5xl lg:text-6xl font-extrabold text-slate-900 leading-tight mb-4 tracking-tight"
+              className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 leading-tight mb-4 tracking-tight"
             >
               Level up your skills with <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-500">Expert Guidance</span>
             </motion.h1>
@@ -47,7 +47,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="text-slate-600 text-lg mb-6 max-w-md"
+              className="text-slate-600 text-base md:text-lg mb-6 max-w-md mx-auto lg:mx-0"
             >
               Join our community of elite learners. Manual verification ensures the highest quality cohort focused on practical mastery.
             </motion.p>
@@ -56,28 +56,27 @@ export default function Home() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="flex items-center space-x-4 pt-4"
+              className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4 pt-4"
             >
               {!user ? (
                 <button 
                   onClick={openAuth}
-                  className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-green-200 hover:scale-[1.02] transition-transform"
+                  className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-green-200 hover:scale-[1.02] transition-transform"
                 >
                   Explore Courses
                 </button>
               ) : (
-                 <a href="#courses" className="px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-green-200 hover:scale-[1.02] transition-transform">
+                 <a href="#courses" className="w-full sm:w-auto text-center px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl shadow-lg shadow-green-200 hover:scale-[1.02] transition-transform">
                   Browse Catalog
                 </a>
               )}
             </motion.div>
           </div>
-          
         </div>
       </section>
 
       {/* Why Choose Us */}
-      <section className="grid md:grid-cols-3 gap-8 px-4">
+      <section className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 px-4 md:px-10">
         {[
           { icon: <ShieldCheck className="h-8 w-8 text-emerald-600" />, title: "Secure Payments", desc: "Manual verification ensures every transaction is safe and genuine." },
           { icon: <Zap className="h-8 w-8 text-emerald-600" />, title: "Expert Mentorship", desc: "Get direct guidance from Anju Somani and experienced instructors." },
@@ -88,7 +87,6 @@ export default function Home() {
               {feat.icon}
             </div>
             <h3 className="text-xl font-bold text-slate-800 mb-3">{feat.title}</h3>
-            <p className="text-slate-500 leading-relaxed text-sm">{feat.desc}</p>
           </div>
         ))}
       </section>
@@ -132,7 +130,6 @@ export default function Home() {
               </div>
               <span className="text-xl font-bold text-slate-800">Strictch Toppers</span>
             </div>
-            <p className="text-slate-500 max-w-md">The platform focuses on high-quality course enrollment and personalized manual payment verification system.</p>
             <div className="flex items-center space-x-4 text-xs font-bold uppercase tracking-widest text-slate-400">
               <Link to="/privacy" className="hover:text-green-600 transition-colors">Privacy Policy</Link>
               <Link to="/terms" className="hover:text-green-600 transition-colors">Terms of Use</Link>

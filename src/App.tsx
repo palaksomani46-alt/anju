@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { Toaster, toast } from 'sonner';
 import Navbar from './components/Navbar';
@@ -40,16 +40,25 @@ export default function App() {
           const docSnap = await getDoc(docRef);
           
           if (docSnap.exists()) {
-            setProfile(docSnap.data());
+            const data = docSnap.data();
+            setProfile(data);
+            // Update online status
+            await updateDoc(docRef, { 
+              status: 'online', 
+              lastSeen: serverTimestamp() 
+            });
           } else {
             // Auto-create profile if missing
-            const isDefaultAdmin = user.email === 'somanimayank723@gmail.com';
+            const admins = ['somanimayank723@gmail.com', 'palaksomani46@gmail.com', 'somanianju46@gmail.com'];
+            const isDefaultAdmin = admins.includes(user.email || '');
             const newProfile = {
               uid: user.uid,
               name: user.displayName || 'Anonymous User',
               email: user.email,
               role: isDefaultAdmin ? 'admin' : 'student',
               enrolledCourses: [],
+              status: 'online',
+              lastSeen: serverTimestamp(),
               createdAt: serverTimestamp(),
             };
             await setDoc(docRef, newProfile);
@@ -72,7 +81,7 @@ export default function App() {
     user,
     profile,
     loading,
-    isAdmin: profile?.role === 'admin',
+    isAdmin: profile?.role === 'admin' || ['somanimayank723@gmail.com', 'palaksomani46@gmail.com', 'somanianju46@gmail.com'].includes(user?.email || ''),
     openAuth: () => setIsAuthOpen(true),
     closeAuth: () => setIsAuthOpen(false),
   };

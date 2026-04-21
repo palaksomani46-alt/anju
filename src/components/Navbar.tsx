@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { LogOut, User as UserIcon, BookOpen, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -12,13 +13,24 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleLogout = async () => {
+    if (user) {
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { 
+          status: 'offline',
+          lastSeen: serverTimestamp()
+        });
+      } catch (error) {
+        console.error("Presence sync error:", error);
+      }
+    }
     await auth.signOut();
     navigate('/');
   };
 
   return (
-    <nav className="h-16 px-10 sticky top-0 z-50 glass shadow-sm">
-      <div className="container mx-auto px-4 h-full">
+    <nav className="h-16 px-4 md:px-10 sticky top-0 z-50 glass shadow-sm">
+      <div className="container mx-auto h-full">
         <div className="flex h-full items-center justify-between">
           <Link to="/" className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
