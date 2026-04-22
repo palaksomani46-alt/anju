@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://strictch-toppers.netlify.app/sitemap.xml
