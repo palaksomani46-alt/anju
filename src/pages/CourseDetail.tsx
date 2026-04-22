@@ -15,7 +15,8 @@ import {
   Clock,
   AlertCircle,
   Users,
-  Zap
+  Zap,
+  Phone
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatPrice, compressImage } from '../lib/utils';
@@ -443,11 +444,22 @@ export default function CourseDetail() {
                   <div className="text-xs text-slate-400">Head Mentor</div>
                 </div>
               </div>
-              <p className="text-sm text-slate-300 leading-relaxed italic">"My goal is to provide you with practical knowledge that you can apply instantly in the real world."</p>
-              <button className="flex items-center space-x-2 text-emerald-400 mt-6 text-sm font-bold hover:text-emerald-300 transition-colors">
-                <MessageCircle className="h-5 w-5" />
-                <span>Chat with Mentor</span>
-              </button>
+              <div className="flex flex-col gap-3 mt-6">
+                <button 
+                  onClick={() => window.open('https://wa.me/918660888419', '_blank')}
+                  className="flex items-center space-x-2 text-emerald-400 text-sm font-bold hover:text-emerald-300 transition-colors"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  <span>Chat with Mentor</span>
+                </button>
+                <a 
+                  href="tel:+918660888419"
+                  className="flex items-center space-x-2 text-blue-400 text-sm font-bold hover:text-blue-300 transition-colors"
+                >
+                  <Phone className="h-5 w-5" />
+                  <span>Call Care Support</span>
+                </a>
+              </div>
             </div>
           </div>
         </div>

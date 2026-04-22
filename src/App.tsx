@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfUse from './pages/TermsOfUse';
 import AuthModal from './components/AuthModal';
+import SupportChat from './components/SupportChat';
 
 interface AuthContextType {
   user: User | null;
@@ -112,6 +113,7 @@ export default function App() {
             </Routes>
           </main>
           <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+          <SupportChat />
           <Toaster position="top-center" richColors />
         </div>
       </Router>

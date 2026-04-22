@@ -74,6 +74,7 @@ service cloud.firestore {
         // Action: Admin Enrollment Update
         (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['enrolledCourses', 'role']))
       );
+      allow delete: if isAdmin();
     }
 
     match /courses/{courseId} {
@@ -88,6 +89,7 @@ service cloud.firestore {
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && isValidEnrollment(incoming()) && incoming().status == 'pending';
       allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+      allow delete: if isAdmin();
     }
   }
 }

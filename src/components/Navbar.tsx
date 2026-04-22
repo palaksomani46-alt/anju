@@ -3,7 +3,7 @@ import { useAuth } from '../App';
 import { auth, db } from '../lib/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { LogOut, User as UserIcon, BookOpen, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
@@ -28,6 +28,17 @@ export default function Navbar() {
     navigate('/');
   };
 
+  const handleCoursesClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (window.location.pathname === '/') {
+      const el = document.getElementById('courses');
+      el?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      navigate('/#courses');
+    }
+    setIsMenuOpen(false);
+  };
+
   return (
     <nav className="h-16 px-4 md:px-10 sticky top-0 z-50 glass shadow-sm">
       <div className="container mx-auto h-full">
@@ -41,8 +52,16 @@ export default function Navbar() {
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-sm font-medium text-green-600 border-b-2 border-green-500 pb-1">Home</Link>
-            <a href="#courses" className="text-sm font-medium text-slate-600 hover:text-green-600 transition-colors">Browse Courses</a>
+            <Link to="/" className={cn(
+               "text-sm font-medium transition-all",
+               window.location.pathname === '/' ? "text-green-600 border-b-2 border-green-500 pb-1" : "text-slate-600 hover:text-green-600"
+            )}>Home</Link>
+            <button 
+              onClick={handleCoursesClick}
+              className="text-sm font-medium text-slate-600 hover:text-green-600 transition-colors cursor-pointer"
+            >
+              Browse Courses
+            </button>
             {user && (
               <Link to="/dashboard" className="text-sm font-medium text-slate-600 hover:text-green-600 transition-colors">
                 {isAdmin ? 'Admin View' : 'My Learning'}
@@ -93,7 +112,12 @@ export default function Navbar() {
           >
             <div className="flex flex-col p-4 space-y-4">
               <Link to="/" onClick={() => setIsMenuOpen(false)} className="text-slate-600 font-medium">Home</Link>
-              <a href="#courses" onClick={() => setIsMenuOpen(false)} className="text-slate-600 font-medium">Courses</a>
+              <button 
+                onClick={handleCoursesClick} 
+                className="text-slate-600 font-medium text-left"
+              >
+                Courses
+              </button>
               {user && (
                 <Link to="/dashboard" onClick={() => setIsMenuOpen(false)} className="text-slate-600 font-medium">
                   Dashboard

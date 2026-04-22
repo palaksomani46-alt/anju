@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Shield, Lock, Eye, Mail, Phone, Calendar } from 'lucide-react';
+import { Shield, Lock, Eye, Mail, Phone, Calendar, MessageCircle } from 'lucide-react';
 
 export default function PrivacyPolicy() {
   return (
@@ -129,17 +129,24 @@ export default function PrivacyPolicy() {
           <h2 className="text-2xl font-bold text-slate-900 m-0">9. Need Assistance?</h2>
           <div className="flex flex-col md:flex-row items-center justify-center gap-6">
             <a 
+              href="tel:+918660888419" 
+              className="flex items-center gap-3 px-6 py-3 bg-slate-50 rounded-2xl hover:bg-blue-50 transition-colors group"
+            >
+              <Phone className="h-5 w-5 text-blue-600 group-hover:scale-110 transition-transform" />
+              <span className="font-bold text-slate-700">Call Support</span>
+            </a>
+            <a 
               href="https://wa.me/918660888419" 
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-3 px-6 py-3 bg-slate-50 rounded-2xl hover:bg-green-50 transition-colors group"
             >
-              <Phone className="h-5 w-5 text-green-600 group-hover:scale-110 transition-transform" />
-              <span className="font-bold text-slate-700">86608 88419</span>
+              <MessageCircle className="h-5 w-5 text-green-600 group-hover:scale-110 transition-transform" />
+              <span className="font-bold text-slate-700">WhatsApp</span>
             </a>
-            <a href="mailto:somanimayank723@gmail.com" className="flex items-center gap-3 px-6 py-3 bg-slate-50 rounded-2xl hover:bg-green-50 transition-colors group">
-              <Mail className="h-5 w-5 text-green-600 group-hover:scale-110 transition-transform" />
-              <span className="font-bold text-slate-700">somanimayank723@gmail.com</span>
+            <a href="mailto:somanimayank723@gmail.com" className="flex items-center gap-3 px-6 py-3 bg-slate-50 rounded-2xl hover:bg-emerald-50 transition-colors group">
+              <Mail className="h-5 w-5 text-emerald-600 group-hover:scale-110 transition-transform" />
+              <span className="font-bold text-slate-700">Email</span>
             </a>
           </div>
           <div className="pt-4 border-t border-slate-50">

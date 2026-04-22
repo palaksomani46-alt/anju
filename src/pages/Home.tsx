@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { useAuth } from '../App';
 import CourseCard from '../components/CourseCard';
 import { motion } from 'motion/react';
-import { CheckCircle, ShieldCheck, Zap, Users, ArrowRight, BookOpen, MessageCircle, Mail } from 'lucide-react';
+import { CheckCircle, ShieldCheck, Zap, Users, ArrowRight, BookOpen, MessageCircle, Mail, Phone } from 'lucide-react';
 
 export default function Home() {
   const [courses, setCourses] = useState<any[]>([]);
@@ -26,6 +26,14 @@ export default function Home() {
       }
     };
     fetchCourses();
+
+    // Handle hash scroll on mount
+    if (window.location.hash === '#courses') {
+      setTimeout(() => {
+        const el = document.getElementById('courses');
+        el?.scrollIntoView({ behavior: 'smooth' });
+      }, 500);
+    }
   }, []);
 
   return (
@@ -162,6 +170,19 @@ export default function Home() {
                 <div className="flex flex-col">
                   <span className="font-bold">Email Support</span>
                   <span className="text-[10px] text-slate-400 font-medium">somanimayank723@gmail.com</span>
+                </div>
+              </a>
+
+              <a 
+                href="tel:+918660888419" 
+                className="group flex items-center gap-3 text-sm text-slate-600 hover:text-green-600 transition-all"
+              >
+                <div className="bg-blue-50 p-2 rounded-xl group-hover:bg-blue-500 group-hover:text-white transition-colors shadow-sm shadow-blue-100">
+                  <Phone className="h-4 w-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold">Call Support</span>
+                  <span className="text-[10px] text-slate-400 font-medium">Direct Voice Call</span>
                 </div>
               </a>
             </div>

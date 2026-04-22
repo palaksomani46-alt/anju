@@ -35,11 +35,13 @@ import {
   Search,
   Filter,
   Mail,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { formatPrice, formatDate, cn } from '../lib/utils';
+import CourseAssistant from '../components/CourseAssistant';
 
 export default function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
@@ -152,14 +154,50 @@ export default function Dashboard() {
   });
 
   const handleDeleteCourse = async (id: string) => {
-    // For fast verification and reliability in iFrames, we skip window.confirm 
-    // and use a toast-based immediate action or a simple try-catch.
-    const toastId = toast.loading("Deleting course...");
+    const toastId = toast.loading("Deleting course and related data...");
     try {
+      // 1. Delete all enrollments related to this course
+      const relatedEnrollments = enrollments.filter(e => e.courseId === id);
+      const deletePromises = relatedEnrollments.map(e => deleteDoc(doc(db, 'enrollments', e.id)));
+      await Promise.all(deletePromises);
+
+      // 2. Remove course from any user who has it in their profile
+      const usersToUpdate = siteUsers.filter(u => u.enrolledCourses?.includes(id));
+      const userUpdatePromises = usersToUpdate.map(u => 
+        updateDoc(doc(db, 'users', u.id), {
+          enrolledCourses: arrayRemove(id)
+        })
+      );
+      await Promise.all(userUpdatePromises);
+
+      // 3. Delete the course
       await deleteDoc(doc(db, 'courses', id));
-      toast.success("Course deleted successfully", { id: toastId });
+      
+      toast.success(`Course and its ${relatedEnrollments.length} enrollment logs cleared`, { id: toastId });
     } catch (error: any) {
-      toast.error("Failed to delete: " + error.message, { id: toastId });
+      toast.error("Cleanup failed: " + error.message, { id: toastId });
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (userId === user?.uid) {
+      toast.error("You cannot delete your own admin account.");
+      return;
+    }
+
+    const toastId = toast.loading("Removing user and clearing logs...");
+    try {
+      // 1. Delete all enrollments related to this user
+      const userEnrollments = enrollments.filter(e => e.userId === userId);
+      const deletePromises = userEnrollments.map(e => deleteDoc(doc(db, 'enrollments', e.id)));
+      await Promise.all(deletePromises);
+
+      // 2. Delete the user document
+      await deleteDoc(doc(db, 'users', userId));
+      
+      toast.success(`User and their ${userEnrollments.length} requests cleared`, { id: toastId });
+    } catch (error: any) {
+      toast.error("Cleanup failed: " + error.message, { id: toastId });
     }
   };
 
@@ -229,6 +267,15 @@ export default function Dashboard() {
                   <Clock className="h-4 w-4" />
                   <span>Status</span>
                 </button>
+                {profile?.enrolledCourses?.length > 0 && (
+                  <button 
+                    onClick={() => setActiveTab('ai_assistant')}
+                    className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'ai_assistant' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                  >
+                    <Sparkles className="h-4 w-4 animate-pulse text-amber-500" />
+                    <span>AI Assistant</span>
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -458,23 +505,33 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4 pt-4 md:pt-0 border-t md:border-t-0 border-slate-50">
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Courses</div>
-                      <div className="flex -space-x-2">
-                        {siteUser.enrolledCourses?.length > 0 ? (
-                          siteUser.enrolledCourses.slice(0, 3).map((_: any, i: number) => (
-                            <div key={i} className="w-6 h-6 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center">
-                              <BookOpen className="w-2.5 h-2.5 text-emerald-600" />
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Courses</div>
+                        <div className="flex -space-x-2">
+                          {siteUser.enrolledCourses?.length > 0 ? (
+                            siteUser.enrolledCourses.slice(0, 3).map((_: any, i: number) => (
+                              <div key={i} className="w-6 h-6 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center">
+                                <BookOpen className="w-2.5 h-2.5 text-emerald-600" />
+                              </div>
+                            ))
+                          ) : (
+                            <span className="text-[10px] text-slate-300 italic">None</span>
+                          )}
+                          {siteUser.enrolledCourses?.length > 3 && (
+                            <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-slate-500">
+                              +{siteUser.enrolledCourses.length - 3}
                             </div>
-                          ))
-                        ) : (
-                          <span className="text-[10px] text-slate-300 italic">None</span>
-                        )}
-                        {siteUser.enrolledCourses?.length > 3 && (
-                          <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-slate-500">
-                            +{siteUser.enrolledCourses.length - 3}
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
+                      
+                      <button 
+                        onClick={() => handleDeleteUser(siteUser.id)}
+                        className="p-3 bg-red-50 text-red-400 hover:text-red-600 rounded-xl transition-colors shrink-0"
+                        title="Delete User"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -562,6 +619,21 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'ai_assistant' && !isAdmin && profile?.enrolledCourses?.length > 0 && (
+            <motion.div
+              key="ai_assistant"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="max-w-4xl mx-auto"
+            >
+              <CourseAssistant 
+                enrolledCourses={courses.filter(c => profile.enrolledCourses.includes(c.id))} 
+                userName={profile.name}
+              />
             </motion.div>
           )}
         </AnimatePresence>
