@@ -13,7 +13,7 @@ export const storage = getStorage(app);
 async function testConnection() {
   try {
     // Attempting to read a dummy doc to verify connection
-    await getDocFromServer(doc(db, 'system', 'connection_test'));
+    await getDocFromServer(doc(db, 'test', 'connection'));
     console.log("Firebase connection established successfully.");
   } catch (error: any) {
     if (error?.message?.includes('the client is offline') || error?.code === 'unavailable') {

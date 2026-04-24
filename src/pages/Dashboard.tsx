@@ -35,13 +35,11 @@ import {
   Search,
   Filter,
   Mail,
-  X,
-  Sparkles
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { formatPrice, formatDate, cn } from '../lib/utils';
-import CourseAssistant from '../components/CourseAssistant';
 
 export default function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
@@ -153,28 +151,40 @@ export default function Dashboard() {
     return matchesTitle && matchesMin && matchesMax;
   });
 
-  const handleDeleteCourse = async (id: string) => {
-    const toastId = toast.loading("Deleting course and related data...");
+  const handleDeleteCourse = async (id: string, title: string) => {
+    if (!window.confirm(`Are you sure you want to PERMANENTLY delete "${title}"? This will also remove it from all enrolled students and delete all payment history for this course. This action cannot be undone.`)) {
+      return;
+    }
+
+    const toastId = toast.loading("Cleaning up course data...");
     try {
       // 1. Delete all enrollments related to this course
       const relatedEnrollments = enrollments.filter(e => e.courseId === id);
-      const deletePromises = relatedEnrollments.map(e => deleteDoc(doc(db, 'enrollments', e.id)));
-      await Promise.all(deletePromises);
+      if (relatedEnrollments.length > 0) {
+        const deletePromises = relatedEnrollments.map(e => deleteDoc(doc(db, 'enrollments', e.id)));
+        await Promise.all(deletePromises);
+      }
 
       // 2. Remove course from any user who has it in their profile
       const usersToUpdate = siteUsers.filter(u => u.enrolledCourses?.includes(id));
-      const userUpdatePromises = usersToUpdate.map(u => 
-        updateDoc(doc(db, 'users', u.id), {
-          enrolledCourses: arrayRemove(id)
-        })
-      );
-      await Promise.all(userUpdatePromises);
+      if (usersToUpdate.length > 0) {
+        const userUpdatePromises = usersToUpdate.map(u => 
+          updateDoc(doc(db, 'users', u.id), {
+            enrolledCourses: arrayRemove(id)
+          })
+        );
+        await Promise.all(userUpdatePromises);
+      }
 
       // 3. Delete the course
       await deleteDoc(doc(db, 'courses', id));
       
-      toast.success(`Course and its ${relatedEnrollments.length} enrollment logs cleared`, { id: toastId });
+      // 4. Force frontend sync just in case onSnapshot is slow (redundant but safe)
+      setCourses(prev => prev.filter(c => c.id !== id));
+      
+      toast.success(`"${title}" and ${relatedEnrollments.length} related records deleted successfully`, { id: toastId });
     } catch (error: any) {
+      console.error("Deletion failed:", error);
       toast.error("Cleanup failed: " + error.message, { id: toastId });
     }
   };
@@ -267,15 +277,6 @@ export default function Dashboard() {
                   <Clock className="h-4 w-4" />
                   <span>Status</span>
                 </button>
-                {profile?.enrolledCourses?.length > 0 && (
-                  <button 
-                    onClick={() => setActiveTab('ai_assistant')}
-                    className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'ai_assistant' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
-                  >
-                    <Sparkles className="h-4 w-4 animate-pulse text-amber-500" />
-                    <span>AI Assistant</span>
-                  </button>
-                )}
               </>
             )}
           </div>
@@ -451,8 +452,9 @@ export default function Dashboard() {
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button 
-                        onClick={() => handleDeleteCourse(course.id)}
+                        onClick={() => handleDeleteCourse(course.id, course.title)}
                         className="p-3 bg-slate-50 text-slate-400 hover:text-red-500 rounded-xl transition-colors"
+                        title="Delete Course"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -622,20 +624,6 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {activeTab === 'ai_assistant' && !isAdmin && profile?.enrolledCourses?.length > 0 && (
-            <motion.div
-              key="ai_assistant"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="max-w-4xl mx-auto"
-            >
-              <CourseAssistant 
-                enrolledCourses={courses.filter(c => profile.enrolledCourses.includes(c.id))} 
-                userName={profile.name}
-              />
-            </motion.div>
-          )}
         </AnimatePresence>
       </main>
 
