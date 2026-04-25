@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { auth, db } from '../lib/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { LogOut, User as UserIcon, BookOpen, Menu, X } from 'lucide-react';
+import { LogOut, User as UserIcon, BookOpen, Menu, X, ArrowRight } from 'lucide-react';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -101,37 +101,66 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Nav */}
+      {/* Mobile Nav Overlay */}
       <AnimatePresence>
         {isMenuOpen && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-white border-t border-slate-100"
-          >
-            <div className="flex flex-col p-4 space-y-4">
-              <Link to="/" onClick={() => setIsMenuOpen(false)} className="text-slate-600 font-medium">Home</Link>
-              <button 
-                onClick={handleCoursesClick} 
-                className="text-slate-600 font-medium text-left"
-              >
-                Courses
-              </button>
-              {user && (
-                <Link to="/dashboard" onClick={() => setIsMenuOpen(false)} className="text-slate-600 font-medium">
-                  Dashboard
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMenuOpen(false)}
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm md:hidden z-[-1]"
+            />
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="md:hidden bg-white border-t border-slate-100 shadow-2xl absolute left-0 right-0"
+            >
+              <div className="flex flex-col p-6 space-y-5">
+                <Link to="/" onClick={() => setIsMenuOpen(false)} className="text-slate-900 font-bold text-lg flex items-center justify-between">
+                  <span>Home</span>
+                  <ArrowRight className="h-4 w-4 text-slate-300" />
                 </Link>
-              )}
-              {user ? (
-                <button onClick={handleLogout} className="text-red-500 font-medium text-left">Logout</button>
-              ) : (
-                <button onClick={() => { setIsMenuOpen(false); openAuth(); }} className="gradient-btn px-6 py-2 rounded-xl text-white font-semibold">
-                  Get Started
+                <button 
+                  onClick={handleCoursesClick} 
+                  className="text-slate-900 font-bold text-lg flex items-center justify-between text-left"
+                >
+                  <span>Courses</span>
+                  <ArrowRight className="h-4 w-4 text-slate-300" />
                 </button>
-              )}
-            </div>
-          </motion.div>
+                {user && (
+                  <Link to="/dashboard" onClick={() => setIsMenuOpen(false)} className="text-slate-900 font-bold text-lg flex items-center justify-between">
+                    <span>{isAdmin ? 'Admin Dashboard' : 'My Learning'}</span>
+                    <ArrowRight className="h-4 w-4 text-slate-300" />
+                  </Link>
+                )}
+                <div className="pt-4 mt-2 border-t border-slate-100 flex flex-col gap-4">
+                  {user ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-xs font-black text-slate-600">
+                          {profile?.name?.charAt(0).toUpperCase() || 'U'}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-900 line-clamp-1">{profile?.name}</span>
+                          <span className="text-[10px] text-slate-400 font-medium">Logged In</span>
+                        </div>
+                      </div>
+                      <button onClick={handleLogout} className="p-3 text-red-500 bg-red-50 rounded-xl">
+                        <LogOut className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setIsMenuOpen(false); openAuth(); }} className="gradient-btn w-full py-4 rounded-2xl text-white font-black shadow-xl shadow-emerald-100 uppercase tracking-widest text-xs">
+                      Get Started Now
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </nav>

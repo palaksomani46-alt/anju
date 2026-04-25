@@ -10,8 +10,8 @@ import CourseDetail from './pages/CourseDetail';
 import Dashboard from './pages/Dashboard';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfUse from './pages/TermsOfUse';
+import Explore from './pages/Explore';
 import AuthModal from './components/AuthModal';
-import OnboardingGuide from './components/OnboardingGuide';
 
 interface AuthContextType {
   user: User | null;
@@ -103,6 +103,7 @@ export default function App() {
           <main className="container mx-auto px-4 py-8">
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/explore" element={<Explore />} />
               <Route path="/course/:id" element={<CourseDetail />} />
               <Route 
                 path="/dashboard" 
@@ -114,7 +115,6 @@ export default function App() {
             </Routes>
           </main>
           <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
-          <OnboardingGuide />
           <Toaster position="top-center" richColors />
         </div>
       </Router>

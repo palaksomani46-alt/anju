@@ -191,7 +191,7 @@ export default function CourseDetail() {
         </div>
 
         <div className="flex-1">
-          <div className="sticky top-24 space-y-6">
+          <div className="lg:sticky lg:top-24 space-y-6">
             <AnimatePresence mode="wait">
               {step === 1 && (
                 <motion.div 
@@ -208,7 +208,7 @@ export default function CourseDetail() {
                   <div className="space-y-4">
                     <div className="flex items-center space-x-3 text-slate-600 text-sm font-medium">
                       <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                      <span>Full Lifetime Access</span>
+                      <span>Non-refundable</span>
                     </div>
                     <div className="flex items-center space-x-3 text-slate-600 text-sm font-medium">
                       <CheckCircle2 className="h-5 w-5 text-emerald-500" />

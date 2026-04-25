@@ -57,6 +57,8 @@ export default function Dashboard() {
   
   // Admin Form States
   const [showAddCourse, setShowAddCourse] = useState(false);
+  const [showEditCourse, setShowEditCourse] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<any>(null);
   const [courseForm, setCourseForm] = useState({ title: '', description: '', price: '', thumbnail: '' });
 
   useEffect(() => {
@@ -160,12 +162,48 @@ export default function Dashboard() {
         price: Number(courseForm.price),
         createdBy: user?.uid,
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
       setShowAddCourse(false);
       setCourseForm({ title: '', description: '', price: '', thumbnail: '' });
       toast.success("Course added successfully");
     } catch (error: any) {
       toast.error(error.message);
+    }
+  };
+
+  const handleEditClick = (course: any) => {
+    setEditingCourse(course);
+    setCourseForm({
+      title: course.title,
+      description: course.description,
+      price: course.price.toString(),
+      thumbnail: course.thumbnail || '',
+    });
+    setShowEditCourse(true);
+  };
+
+  const handleUpdateCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCourse) return;
+
+    const toastId = toast.loading("Updating course...");
+    try {
+      const courseRef = doc(db, 'courses', editingCourse.id);
+      await updateDoc(courseRef, {
+        title: courseForm.title,
+        description: courseForm.description,
+        price: Number(courseForm.price),
+        thumbnail: courseForm.thumbnail,
+        updatedAt: serverTimestamp(),
+      });
+      
+      setShowEditCourse(false);
+      setEditingCourse(null);
+      setCourseForm({ title: '', description: '', price: '', thumbnail: '' });
+      toast.success("Course updated successfully", { id: toastId });
+    } catch (error: any) {
+      toast.error("Update failed: " + error.message, { id: toastId });
     }
   };
 
@@ -319,12 +357,12 @@ export default function Dashboard() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-1">
-                  <h2 className="text-2xl font-bold text-slate-800">Enrollment Requests</h2>
-                  <p className="text-sm text-slate-500 font-medium">Monitor who is purchasing which course.</p>
+                  <h2 className="text-xl md:text-2xl font-bold text-slate-800">Enrollment Requests</h2>
+                  <p className="text-xs md:text-sm text-slate-500 font-medium">Monitor who is purchasing which course.</p>
                 </div>
-                <div className="bg-emerald-50 text-emerald-700 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-emerald-100">
+                <div className="bg-emerald-50 text-emerald-700 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border border-emerald-100 w-fit">
                   {enrollments.filter(e => e.status === 'pending').length} Actions Pending
                 </div>
               </div>
@@ -402,22 +440,22 @@ export default function Dashboard() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-8"
             >
-              <div className="flex justify-between items-center bg-slate-900 p-8 rounded-[2.5rem] text-white">
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-bold">Manage Catalog</h2>
-                  <p className="text-slate-400 text-sm font-medium">Create and manage your course offerings.</p>
+              <div className="flex justify-between items-center bg-slate-900 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] text-white">
+                <div className="space-y-1 md:space-y-2">
+                  <h2 className="text-xl md:text-2xl font-bold">Manage Catalog</h2>
+                  <p className="text-slate-400 text-[10px] md:text-sm font-medium">Create and manage your courses.</p>
                 </div>
                 <button 
                   onClick={() => setShowAddCourse(true)}
-                  className="bg-emerald-500 text-white p-4 rounded-2xl shadow-lg hover:scale-105 transition-transform"
+                  className="bg-emerald-500 text-white p-3 md:p-4 rounded-xl md:rounded-2xl shadow-lg hover:scale-105 transition-transform shrink-0"
                 >
-                  <Plus className="h-6 w-6" />
+                  <Plus className="h-5 w-5 md:h-6 md:w-6" />
                 </button>
               </div>
 
               {/* Filtering Controls */}
-              <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
-                <div className="flex flex-col md:flex-row gap-4">
+              <div className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                <div className="flex flex-col lg:flex-row gap-4">
                   <div className="flex-1 relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <input 
@@ -428,23 +466,23 @@ export default function Dashboard() {
                       className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-sm"
                     />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center bg-slate-50 border border-slate-100 rounded-2xl px-4 py-2">
-                      <Filter className="h-4 w-4 text-slate-400 mr-2" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center bg-slate-50 border border-slate-100 rounded-2xl px-4 py-2 flex-1 md:flex-none">
+                      <Filter className="h-3 w-3 md:h-4 md:w-4 text-slate-400 mr-2" />
                       <input 
                         type="number"
-                        placeholder="Min Price"
+                        placeholder="Min"
                         value={minPrice}
                         onChange={(e) => setMinPrice(e.target.value)}
-                        className="bg-transparent focus:outline-none text-sm w-24"
+                        className="bg-transparent focus:outline-none text-xs md:text-sm w-16 md:w-24"
                       />
                       <span className="text-slate-300 mx-2">|</span>
                       <input 
                         type="number"
-                        placeholder="Max Price"
+                        placeholder="Max"
                         value={maxPrice}
                         onChange={(e) => setMaxPrice(e.target.value)}
-                        className="bg-transparent focus:outline-none text-sm w-24"
+                        className="bg-transparent focus:outline-none text-xs md:text-sm w-16 md:w-24"
                       />
                     </div>
                     {(courseSearch || minPrice || maxPrice) && (
@@ -454,7 +492,7 @@ export default function Dashboard() {
                           setMinPrice('');
                           setMaxPrice('');
                         }}
-                        className="text-xs font-bold text-red-500 hover:text-red-600 transition-colors px-2"
+                        className="text-xs font-bold text-red-500 hover:text-red-600 transition-colors px-2 ml-auto"
                       >
                         Clear
                       </button>
@@ -466,9 +504,9 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
+              <div className="grid sm:grid-cols-2 gap-4 md:gap-6">
                 {filteredCourses.map(course => (
-                  <div key={course.id} className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 flex flex-col sm:flex-row items-center gap-4 md:gap-6 group">
+                  <div key={course.id} className="bg-white p-4 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row items-center gap-4 md:gap-6 group">
                     <div className="h-24 w-full sm:h-20 sm:w-32 rounded-2xl overflow-hidden shadow-sm shrink-0">
                       <img src={course.thumbnail || `https://picsum.photos/seed/${course.id}/400/300`} className="h-full w-full object-cover" alt="" />
                     </div>
@@ -477,7 +515,11 @@ export default function Dashboard() {
                       <div className="text-lg font-black text-primary">{formatPrice(course.price)}</div>
                     </div>
                     <div className="flex items-center gap-2 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-50 w-full sm:w-auto justify-center sm:justify-end">
-                      <button className="p-3 bg-slate-50 text-slate-400 hover:text-primary rounded-xl transition-colors">
+                      <button 
+                        onClick={() => handleEditClick(course)}
+                        className="p-3 bg-slate-50 text-slate-400 hover:text-primary rounded-xl transition-colors"
+                        title="Edit Course"
+                      >
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button 
@@ -502,16 +544,16 @@ export default function Dashboard() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-6"
             >
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-slate-800">Site Users</h2>
-                <div className="bg-slate-100 text-slate-600 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h2 className="text-xl md:text-2xl font-bold text-slate-800">Site Users</h2>
+                <div className="bg-slate-100 text-slate-600 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border border-slate-200 w-fit">
                   {siteUsers.length} Registered
                 </div>
               </div>
 
-              <div className="grid gap-4">
+              <div className="grid gap-3 md:gap-4">
                 {siteUsers.map((siteUser) => (
-                  <div key={siteUser.id} className="bg-white p-5 rounded-2xl border border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group hover:border-emerald-100 transition-colors">
+                  <div key={siteUser.id} className="bg-white p-4 md:p-5 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group hover:border-emerald-100 transition-colors">
                     <div className="flex items-center gap-4 w-full md:w-auto">
                       <div className="relative shrink-0">
                         <div className="h-10 w-10 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center font-bold text-sm">
@@ -524,41 +566,47 @@ export default function Dashboard() {
                       </div>
                       <div className="overflow-hidden">
                         <div className="font-bold text-slate-800 flex flex-wrap items-center gap-2">
-                          <span className="truncate">{siteUser.name}</span>
+                          <span className="truncate max-w-[150px] sm:max-w-none text-sm md:text-base">{siteUser.name}</span>
                           {siteUser.role === 'admin' && (
-                            <span className="text-[10px] bg-slate-900 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">Admin</span>
+                            <span className="text-[9px] bg-slate-900 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">Admin</span>
                           )}
-                          <span className="text-[9px] font-medium text-slate-400">
-                            {siteUser.status === 'online' ? 'Active Now' : `Last: ${formatDate(siteUser.lastSeen)}`}
-                          </span>
                         </div>
-                        <div className="text-xs text-slate-500 truncate">{siteUser.email}</div>
+                        <div className="text-[10px] md:text-xs text-slate-500 truncate">{siteUser.email}</div>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4 pt-4 md:pt-0 border-t md:border-t-0 border-slate-50">
-                      <div className="flex flex-col items-end gap-1">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Courses</div>
-                        <div className="flex -space-x-2">
-                          {siteUser.enrolledCourses?.length > 0 ? (
-                            siteUser.enrolledCourses.slice(0, 3).map((_: any, i: number) => (
-                              <div key={i} className="w-6 h-6 rounded-full bg-emerald-100 border-2 border-white flex items-center justify-center">
-                                <BookOpen className="w-2.5 h-2.5 text-emerald-600" />
+                    <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4 pt-4 md:pt-0 border-t md:border-t-0 border-slate-50 mt-1 md:mt-0">
+                      <div className="flex items-center gap-4">
+                        <div className="flex flex-col items-start md:items-end gap-1">
+                          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Enrolled</div>
+                          <div className="flex -space-x-1.5">
+                            {siteUser.enrolledCourses?.length > 0 ? (
+                              siteUser.enrolledCourses.slice(0, 3).map((_: any, i: number) => (
+                                <div key={i} className="w-5 h-5 rounded-full bg-emerald-100 border border-white flex items-center justify-center shadow-sm">
+                                  <BookOpen className="w-2 h-2 text-emerald-600" />
+                                </div>
+                              ))
+                            ) : (
+                              <span className="text-[9px] text-slate-300 font-bold uppercase">None</span>
+                            )}
+                            {siteUser.enrolledCourses?.length > 3 && (
+                              <div className="w-5 h-5 rounded-full bg-slate-100 border border-white flex items-center justify-center text-[7px] font-bold text-slate-500 shadow-sm">
+                                +{siteUser.enrolledCourses.length - 3}
                               </div>
-                            ))
-                          ) : (
-                            <span className="text-[10px] text-slate-300 italic">None</span>
-                          )}
-                          {siteUser.enrolledCourses?.length > 3 && (
-                            <div className="w-6 h-6 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-slate-500">
-                              +{siteUser.enrolledCourses.length - 3}
-                            </div>
-                          )}
+                            )}
+                          </div>
+                        </div>
+                        <div className="h-8 w-[1px] bg-slate-100" />
+                        <div className="flex flex-col items-start md:items-end gap-0.5">
+                          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Seen</div>
+                          <span className="text-[10px] font-bold text-slate-700 whitespace-nowrap">
+                             {siteUser.status === 'online' ? 'Active' : formatDate(siteUser.lastSeen).split(',')[0]}
+                          </span>
                         </div>
                       </div>
                       
                       <button 
                         onClick={() => handleDeleteUser(siteUser.id)}
-                        className="p-3 bg-red-50 text-red-400 hover:text-red-600 rounded-xl transition-colors shrink-0"
+                        className="p-2.5 bg-red-50 text-red-400 hover:text-red-600 rounded-xl transition-colors shrink-0"
                         title="Delete User"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -608,36 +656,38 @@ export default function Dashboard() {
                 </div>
               )}
 
-              <div className="grid md:grid-cols-2 gap-8">
+              <div className="grid sm:grid-cols-2 gap-4 md:gap-8">
                 {courses
                   .filter(c => 
                     profile?.enrolledCourses?.includes(c.id) && 
                     c.title.toLowerCase().includes(courseSearch.toLowerCase())
                   )
                   .map(course => (
-                    <div key={course.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 space-y-6 shadow-sm hover:shadow-xl transition-all">
-                      <div className="relative aspect-video rounded-3xl overflow-hidden">
-                        <img src={course.thumbnail || `https://picsum.photos/seed/${course.id}/800/600`} className="w-full h-full object-cover" alt="" />
-                        <div className="absolute inset-0 bg-primary/20 backdrop-blur-[2px] opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <button className="bg-white text-primary px-6 py-3 rounded-2xl font-bold shadow-xl flex items-center space-x-2">
-                            <BookOpen className="h-5 w-5" />
-                            <span>Continue Learning</span>
+                    <div key={course.id} className="bg-white p-4 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border border-slate-100 flex flex-col gap-4 md:gap-6 shadow-sm hover:shadow-xl transition-all group">
+                      <div className="relative aspect-video rounded-2xl md:rounded-3xl overflow-hidden">
+                        <img src={course.thumbnail || `https://picsum.photos/seed/${course.id}/800/600`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
+                        <div className="absolute inset-0 bg-primary/20 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <button className="bg-white text-primary px-5 py-2.5 md:px-6 md:py-3 rounded-xl md:rounded-2xl font-bold shadow-xl flex items-center space-x-2 text-xs md:text-base">
+                            <BookOpen className="h-4 w-4 md:h-5 md:w-5" />
+                            <span>Continue</span>
                           </button>
                         </div>
                       </div>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-start">
-                          <h3 className="text-xl font-bold text-slate-800">{course.title}</h3>
-                          <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                      <div className="space-y-3 md:space-y-4 px-1">
+                        <div className="flex justify-between items-start gap-2">
+                          <h3 className="text-base md:text-xl font-bold text-slate-800 leading-tight">{course.title}</h3>
+                          <div className="bg-emerald-100 text-emerald-700 px-2 py-0.5 md:px-3 md:py-1 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest shrink-0">
                             Active
                           </div>
                         </div>
-                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                          <div className="bg-emerald-500 h-full w-1/3 rounded-full"></div>
-                        </div>
-                        <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
-                          <span>35% Complete</span>
-                          <span>Next: Module 4</span>
+                        <div className="space-y-2">
+                          <div className="w-full bg-slate-100 h-1.5 md:h-2 rounded-full overflow-hidden">
+                            <div className="bg-emerald-500 h-full w-1/3 rounded-full"></div>
+                          </div>
+                          <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            <span>35% Complete</span>
+                            <span className="hidden xs:inline">Next: Module 4</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -667,30 +717,31 @@ export default function Dashboard() {
 
           {activeTab === 'requests' && !isAdmin && (
             <motion.div key="requests" className="space-y-6">
-              <h2 className="text-2xl font-bold text-slate-800">Enrollment Requests</h2>
-              <div className="grid gap-6">
+              <h2 className="text-xl md:text-2xl font-bold text-slate-800">Enrollment Status</h2>
+              <div className="grid gap-4 md:gap-6">
                 {enrollments.map(enroll => (
-                  <div key={enroll.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center">
+                  <div key={enroll.id} className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex items-center gap-4">
-                      <div className={`p-4 rounded-2xl ${enroll.status === 'approved' ? 'bg-emerald-50 text-emerald-600' : enroll.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
-                        {enroll.status === 'approved' ? <CheckCircle /> : enroll.status === 'pending' ? <Clock /> : <XCircle />}
+                      <div className={`p-3 md:p-4 rounded-xl md:rounded-2xl shrink-0 ${enroll.status === 'approved' ? 'bg-emerald-50 text-emerald-600' : enroll.status === 'pending' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
+                        {enroll.status === 'approved' ? <CheckCircle className="h-5 w-5 md:h-6 md:w-6" /> : enroll.status === 'pending' ? <Clock className="h-5 w-5 md:h-6 md:w-6" /> : <XCircle className="h-5 w-5 md:h-6 md:w-6" />}
                       </div>
                       <div className="space-y-1">
-                        <h3 className="font-bold text-slate-800">{enroll.courseTitle}</h3>
-                        <div className="text-xs text-slate-400">Request ID: {enroll.id.slice(-8).toUpperCase()} • {formatDate(enroll.createdAt)}</div>
+                        <h3 className="font-bold text-slate-800 text-sm md:text-base leading-tight">{enroll.courseTitle}</h3>
+                        <div className="text-[10px] md:text-xs text-slate-400">ID: {enroll.id.slice(-8).toUpperCase()} • {formatDate(enroll.createdAt)}</div>
                         {enroll.status === 'approved' && (
-                          <div className="text-[10px] font-bold text-emerald-600 animate-pulse">
-                            🎉 Access Granted! Our team will contact you in 24 hours for onboarding.
+                          <div className="text-[10px] font-bold text-emerald-600 animate-pulse mt-1">
+                            🎉 Access Granted! Our team will contact you in 24 hours.
                           </div>
                         )}
                         {enroll.status === 'rejected' && (
-                          <div className="text-[10px] font-bold text-red-500">
-                             ❌ Request Rejected. Please contact support if you have already paid.
+                          <div className="text-[10px] font-bold text-red-500 mt-1">
+                             ❌ Request Rejected. Contact support if needed.
                           </div>
                         )}
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="w-full sm:w-auto text-right flex items-center justify-between sm:block">
+                      <span className="sm:hidden text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</span>
                       <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
                         enroll.status === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 shadow-sm shadow-emerald-50' : 
                         enroll.status === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-100' : 
@@ -708,24 +759,108 @@ export default function Dashboard() {
         </AnimatePresence>
       </main>
 
-      {/* Add Course Modal */}
+      {/* Edit Course Modal */}
       <AnimatePresence>
-        {showAddCourse && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+        {showEditCourse && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl p-10 relative"
+              className="w-full max-w-lg bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-2xl p-6 md:p-10 relative my-auto"
             >
               <button 
-                onClick={() => setShowAddCourse(false)}
-                className="absolute top-8 right-8 text-slate-400 hover:text-slate-600"
+                onClick={() => {
+                  setShowEditCourse(false);
+                  setEditingCourse(null);
+                  setCourseForm({ title: '', description: '', price: '', thumbnail: '' });
+                }}
+                className="absolute top-6 right-6 md:top-8 md:right-8 text-slate-400 hover:text-slate-600"
               >
                 <XCircle />
               </button>
               
-              <h2 className="text-3xl font-black text-slate-900 mb-8">Add New Course</h2>
+              <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-2">Edit Course</h2>
+              <p className="text-slate-500 text-xs md:text-sm mb-6 md:mb-8">Update course details for your students.</p>
+              
+              <form onSubmit={handleUpdateCourse} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Course Title</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={courseForm.title}
+                    onChange={(e) => setCourseForm({...courseForm, title: e.target.value})}
+                    placeholder="e.g. Advanced Marketing Mastery" 
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all font-medium"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Price (INR)</label>
+                  <input 
+                    type="number" 
+                    required 
+                    value={courseForm.price}
+                    onChange={(e) => setCourseForm({...courseForm, price: e.target.value})}
+                    placeholder="2999" 
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all font-medium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Description</label>
+                  <textarea 
+                    required 
+                    rows={4}
+                    value={courseForm.description}
+                    onChange={(e) => setCourseForm({...courseForm, description: e.target.value})}
+                    placeholder="Describe what students will learn..." 
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all font-medium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-widest px-2">Thumbnail URL</label>
+                  <input 
+                    type="text" 
+                    value={courseForm.thumbnail}
+                    onChange={(e) => setCourseForm({...courseForm, thumbnail: e.target.value})}
+                    placeholder="https://image-url.com/photo.jpg" 
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all font-medium"
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full gradient-btn py-4 rounded-2xl text-white font-bold shadow-xl shadow-emerald-100 active:scale-95 transition-all"
+                >
+                  Save Changes
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Course Modal */}
+      <AnimatePresence>
+        {showAddCourse && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-2xl p-6 md:p-10 relative my-auto"
+            >
+              <button 
+                onClick={() => setShowAddCourse(false)}
+                className="absolute top-6 right-6 md:top-8 md:right-8 text-slate-400 hover:text-slate-600"
+              >
+                <XCircle />
+              </button>
+              
+              <h2 className="text-2xl md:text-3xl font-black text-slate-900 mb-6 md:mb-8">Add New Course</h2>
               
               <form onSubmit={handleAddCourse} className="space-y-6">
                 <div className="space-y-2">
