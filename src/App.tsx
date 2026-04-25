@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfUse from './pages/TermsOfUse';
 import AuthModal from './components/AuthModal';
+import OnboardingGuide from './components/OnboardingGuide';
 
 interface AuthContextType {
   user: User | null;
@@ -109,9 +110,11 @@ export default function App() {
               />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfUse />} />
+              <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </main>
           <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+          <OnboardingGuide />
           <Toaster position="top-center" richColors />
         </div>
       </Router>

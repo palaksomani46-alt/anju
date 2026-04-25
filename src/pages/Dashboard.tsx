@@ -70,11 +70,17 @@ export default function Dashboard() {
     const unsubEnroll = onSnapshot(enrollQuery, (snapshot) => {
       setEnrollments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
+    }, (error) => {
+      console.error("Enrollment sub error:", error);
+      toast.error("Failed to sync enrollments. Please check your connection.");
+      setLoading(false);
     });
 
     // Fetch all courses for admin
     const unsubCourses = onSnapshot(collection(db, 'courses'), (snapshot) => {
       setCourses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error("Courses sub error:", error);
     });
 
     // Fetch all users for admin
@@ -82,6 +88,8 @@ export default function Dashboard() {
     if (isAdmin) {
       unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         setSiteUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }, (error) => {
+        console.error("Users sub error:", error);
       });
     }
 
@@ -124,6 +132,24 @@ export default function Dashboard() {
     } catch (error: any) {
       toast.error(error.message);
     }
+  };
+
+  const handleFirestoreError = (error: any, operation: string, path: string | null) => {
+    const errorInfo = {
+      error: error?.message || String(error),
+      operationType: operation,
+      path: path,
+      authInfo: {
+        userId: user?.uid,
+        email: user?.email,
+        emailVerified: user?.emailVerified,
+      }
+    };
+    console.error('Firestore Error Detail:', JSON.stringify(errorInfo, null, 2));
+    if (error?.code === 'permission-denied') {
+      toast.error("Permission denied. You might not have admin rights.");
+    }
+    return new Error(JSON.stringify(errorInfo));
   };
 
   const handleAddCourse = async (e: React.FormEvent) => {
@@ -352,12 +378,15 @@ export default function Dashboard() {
                         </button>
                       </div>
                       
-                      <button 
-                        onClick={() => window.open(enroll.paymentScreenshot, '_blank')}
-                        className="hidden sm:flex p-3 text-slate-400 hover:text-primary transition-colors bg-slate-50 rounded-xl"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => window.open(enroll.paymentScreenshot, '_blank')}
+                          className="hidden sm:flex p-3 text-slate-400 hover:text-primary transition-colors bg-slate-50 rounded-xl"
+                          title="View Proof"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -544,43 +573,95 @@ export default function Dashboard() {
           {activeTab === 'my_courses' && !isAdmin && (
             <motion.div 
               key="my_courses"
-              className="grid md:grid-cols-2 gap-8"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-8"
             >
-              {courses.filter(c => profile?.enrolledCourses?.includes(c.id)).map(course => (
-                <div key={course.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 space-y-6 shadow-sm hover:shadow-xl transition-all">
-                  <div className="relative aspect-video rounded-3xl overflow-hidden">
-                    <img src={course.thumbnail || `https://picsum.photos/seed/${course.id}/800/600`} className="w-full h-full object-cover" alt="" />
-                    <div className="absolute inset-0 bg-primary/20 backdrop-blur-[2px] opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <button className="bg-white text-primary px-6 py-3 rounded-2xl font-bold shadow-xl flex items-center space-x-2">
-                        <BookOpen className="h-5 w-5" />
-                        <span>Continue Learning</span>
+              {/* User Search Bar */}
+              {profile?.enrolledCourses?.length > 0 && (
+                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+                  <div className="flex-1 relative w-full">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input 
+                      type="text"
+                      placeholder="Search your enrolled courses..."
+                      value={courseSearch}
+                      onChange={(e) => setCourseSearch(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-sm font-medium"
+                    />
+                    {courseSearch && (
+                      <button 
+                        onClick={() => setCourseSearch('')}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200 rounded-full transition-colors"
+                      >
+                        <X className="h-4 w-4 text-slate-400" />
                       </button>
-                    </div>
+                    )}
                   </div>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-start">
-                      <h3 className="text-xl font-bold text-slate-800">{course.title}</h3>
-                      <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
-                        Active
-                      </div>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div className="bg-emerald-500 h-full w-1/3 rounded-full"></div>
-                    </div>
-                    <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
-                      <span>35% Complete</span>
-                      <span>Next: Module 4</span>
-                    </div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap px-2">
+                    {courses.filter(c => 
+                      profile?.enrolledCourses?.includes(c.id) && 
+                      c.title.toLowerCase().includes(courseSearch.toLowerCase())
+                    ).length} Enrolled Courses
                   </div>
-                </div>
-              ))}
-              {(!profile?.enrolledCourses || profile.enrolledCourses.length === 0) && (
-                <div className="col-span-2 text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
-                  <BookOpen className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                  <p className="text-slate-400 font-bold mb-4">You haven't enrolled in any courses yet</p>
-                  <button onClick={() => window.scrollTo(0, 0)} className="text-primary font-bold hover:underline">Explore Courses</button>
                 </div>
               )}
+
+              <div className="grid md:grid-cols-2 gap-8">
+                {courses
+                  .filter(c => 
+                    profile?.enrolledCourses?.includes(c.id) && 
+                    c.title.toLowerCase().includes(courseSearch.toLowerCase())
+                  )
+                  .map(course => (
+                    <div key={course.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 space-y-6 shadow-sm hover:shadow-xl transition-all">
+                      <div className="relative aspect-video rounded-3xl overflow-hidden">
+                        <img src={course.thumbnail || `https://picsum.photos/seed/${course.id}/800/600`} className="w-full h-full object-cover" alt="" />
+                        <div className="absolute inset-0 bg-primary/20 backdrop-blur-[2px] opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <button className="bg-white text-primary px-6 py-3 rounded-2xl font-bold shadow-xl flex items-center space-x-2">
+                            <BookOpen className="h-5 w-5" />
+                            <span>Continue Learning</span>
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-start">
+                          <h3 className="text-xl font-bold text-slate-800">{course.title}</h3>
+                          <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                            Active
+                          </div>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div className="bg-emerald-500 h-full w-1/3 rounded-full"></div>
+                        </div>
+                        <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
+                          <span>35% Complete</span>
+                          <span>Next: Module 4</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                
+                {(!profile?.enrolledCourses || profile.enrolledCourses.length === 0) && (
+                  <div className="col-span-2 text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
+                    <BookOpen className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-400 font-bold mb-4">You haven't enrolled in any courses yet</p>
+                    <button onClick={() => window.scrollTo(0, 0)} className="text-primary font-bold hover:underline">Explore Courses</button>
+                  </div>
+                )}
+
+                {profile?.enrolledCourses?.length > 0 && courseSearch && courses.filter(c => 
+                  profile?.enrolledCourses?.includes(c.id) && 
+                  c.title.toLowerCase().includes(courseSearch.toLowerCase())
+                ).length === 0 && (
+                  <div className="col-span-2 text-center py-20 bg-slate-50 rounded-[3rem] border border-slate-100">
+                    <Search className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                    <p className="text-slate-400 font-bold">No enrolled courses found matching "{courseSearch}"</p>
+                    <button onClick={() => setCourseSearch('')} className="mt-2 text-emerald-500 font-bold hover:underline">Clear Search</button>
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
 
