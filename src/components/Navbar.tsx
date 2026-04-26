@@ -64,7 +64,7 @@ export default function Navbar() {
             </button>
             {user && (
               <Link to="/dashboard" className="text-sm font-medium text-slate-600 hover:text-green-600 transition-colors">
-                My Learning
+                {isAdmin ? 'Admin Panel' : 'My Learning'}
               </Link>
             )}
             
@@ -132,7 +132,7 @@ export default function Navbar() {
                 </button>
                 {user && (
                   <Link to="/dashboard" onClick={() => setIsMenuOpen(false)} className="text-slate-900 font-bold text-lg flex items-center justify-between">
-                    <span>My Learning</span>
+                    <span>{isAdmin ? 'Admin Panel' : 'My Learning'}</span>
                     <ArrowRight className="h-4 w-4 text-slate-300" />
                   </Link>
                 )}

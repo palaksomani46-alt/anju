@@ -43,7 +43,7 @@ import { formatPrice, formatDate, cn } from '../lib/utils';
 
 export default function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
-  const [activeTab, setActiveTab] = useState('my_courses');
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'enrollments' : 'my_courses');
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [siteUsers, setSiteUsers] = useState<any[]>([]);
@@ -286,31 +286,32 @@ export default function Dashboard() {
       <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div className="space-y-1 w-full lg:w-auto">
           <h1 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight">
-            Hero's <span className="text-primary italic">Workspace</span>
+            {isAdmin ? 'Admin' : 'Student'} <span className="text-primary italic">Workspace</span>
           </h1>
           <p className="text-slate-500 font-medium text-sm md:text-base">Welcome back, {profile?.name}</p>
         </div>
 
         <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 w-full lg:w-auto overflow-x-auto no-scrollbar scroll-smooth">
           <div className="flex min-w-max">
-            <button 
-              onClick={() => setActiveTab('my_courses')}
-              className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'my_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
-            >
-              <BookOpen className="h-4 w-4" />
-              <span>My Courses</span>
-            </button>
-            <button 
-              onClick={() => setActiveTab('requests')}
-              className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'requests' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
-            >
-              <Clock className="h-4 w-4" />
-              <span>Status</span>
-            </button>
-
-            {isAdmin && (
+            {!isAdmin ? (
               <>
-                <div className="w-[1px] bg-slate-200 mx-2 my-2" />
+                <button 
+                  onClick={() => setActiveTab('my_courses')}
+                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'my_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span>My Courses</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('requests')}
+                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'requests' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                >
+                  <Clock className="h-4 w-4" />
+                  <span>Status</span>
+                </button>
+              </>
+            ) : (
+              <>
                 <button 
                   onClick={() => setActiveTab('enrollments')}
                   className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all relative ${activeTab === 'enrollments' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
