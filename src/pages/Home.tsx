@@ -207,6 +207,19 @@ export default function Home() {
                   <span className="text-[11px] text-slate-400 font-bold">Priority Support</span>
                 </div>
               </a>
+
+              <a 
+                href="tel:8660888419" 
+                className="group flex items-center gap-4 text-sm text-slate-600 hover:text-emerald-600 transition-all"
+              >
+                <div className="bg-white border border-slate-100 p-2.5 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-sm">
+                  <Phone className="h-5 w-5 text-slate-400 group-hover:text-white" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-black text-slate-900">Call Support</span>
+                  <span className="text-[11px] text-slate-400 font-bold">+91 86608 88419</span>
+                </div>
+              </a>
             </div>
           </div>
 
