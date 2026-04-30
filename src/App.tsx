@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import { Toaster, toast } from 'sonner';
 import Navbar from './components/Navbar';
@@ -33,56 +33,110 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    // Capture referral ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const ref = urlParams.get('ref');
+    if (ref) {
+      sessionStorage.setItem('referredBy', ref);
+    }
+  }, []);
+
+  useEffect(() => {
+    let unsubProfile: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
+
       setUser(user);
+      
       if (user) {
+        const docRef = doc(db, 'users', user.uid);
+        
+        // Initial check and auto-create
         try {
-          const docRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            setProfile(data);
-            // Update online status
-            await updateDoc(docRef, { 
-              status: 'online', 
-              lastSeen: serverTimestamp() 
-            });
-          } else {
-            // Auto-create profile if missing
-            const admins = ['somanimayank723@gmail.com', 'palaksomani46@gmail.com', 'somanianju46@gmail.com'];
-            const isDefaultAdmin = admins.includes(user.email || '');
+          const initialSnap = await getDoc(docRef);
+          if (!initialSnap.exists()) {
+            const admins = ['palaksomani46@gmail.com'];
+            const isDefaultAdmin = admins.includes(user.email?.toLowerCase() || '');
+            const referredBy = sessionStorage.getItem('referredBy');
+            
             const newProfile = {
               uid: user.uid,
+              shortId: user.uid.substring(0, 8),
               name: user.displayName || 'Anonymous User',
               email: user.email,
               role: isDefaultAdmin ? 'admin' : 'student',
               enrolledCourses: [],
+              referredBy: referredBy || null,
               status: 'online',
               lastSeen: serverTimestamp(),
               createdAt: serverTimestamp(),
             };
             await setDoc(docRef, newProfile);
+            sessionStorage.removeItem('referredBy'); // Clear after use
             setProfile(newProfile);
+          } else {
+            const data = initialSnap.data();
+            setProfile(data);
+            // Sync status and ensure shortId
+            const updates: any = { 
+              status: 'online', 
+              lastSeen: serverTimestamp() 
+            };
+            if (!data.shortId) {
+              updates.shortId = user.uid.substring(0, 8);
+            }
+            await updateDoc(docRef, updates);
           }
         } catch (error) {
-          console.error("Error fetching profile:", error);
-          toast.error("Failed to load user profile");
+          console.error("Error during initial profile setup:", error);
         }
+
+        // Real-time listener to handle deletions or updates
+        unsubProfile = onSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            const isAdminEmail = user.email?.toLowerCase() === 'palaksomani46@gmail.com';
+            
+            // Sync role if needed
+            if (data.role === 'admin' && !isAdminEmail) {
+              updateDoc(docRef, { role: 'student' });
+              data.role = 'student';
+            } else if (isAdminEmail && data.role !== 'admin') {
+              updateDoc(docRef, { role: 'admin' });
+              data.role = 'admin';
+            }
+            
+            setProfile(data);
+          } else {
+            // Profile deleted by admin! Force logout
+            setProfile(null);
+            auth.signOut();
+            toast.error("Your account has been removed by the administrator.");
+          }
+        }, (err) => {
+          console.error("Profile listener error:", err);
+        });
       } else {
         setProfile(null);
       }
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeAuth();
+      if (unsubProfile) unsubProfile();
+    };
   }, []);
 
   const value = {
     user,
     profile,
     loading,
-    isAdmin: profile?.role === 'admin' || ['somanimayank723@gmail.com', 'palaksomani46@gmail.com', 'somanianju46@gmail.com'].includes(user?.email || ''),
+    isAdmin: user?.email?.toLowerCase() === 'palaksomani46@gmail.com',
     openAuth: () => setIsAuthOpen(true),
     closeAuth: () => setIsAuthOpen(false),
   };

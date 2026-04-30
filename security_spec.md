@@ -2,7 +2,7 @@
 
 ## Data Invariants
 1. A user profile must correctly store the UID from the authentication object.
-2. Only the user with email 'somanimayank723@gmail.com' can have the 'admin' role.
+2. Only the user with email 'palaksomani46@gmail.com' can have the 'admin' role.
 3. Enrollments must link to a valid course and a valid user.
 4. Users can only see their own enrollments, while admins can see all.
 5. Once an enrollment is 'approved' or 'rejected', it cannot be modified by the student.

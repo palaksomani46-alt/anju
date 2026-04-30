@@ -35,23 +35,34 @@ import {
   Search,
   Filter,
   Mail,
-  X
+  X,
+  Award,
+  Download,
+  Gift,
+  Share2,
+  Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { formatPrice, formatDate, cn } from '../lib/utils';
+import { CertificateTemplate } from '../components/CertificateTemplate';
+import { generateAndSaveCertificate } from '../lib/certificateUtils';
 
 export default function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState(isAdmin ? 'enrollments' : 'my_courses');
   const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [completionRequests, setCompletionRequests] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [siteUsers, setSiteUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [certData, setCertData] = useState<any>(null);
   
   // Admin Filter States
   const [courseSearch, setCourseSearch] = useState('');
+  const [userSearch, setUserSearch] = useState('');
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   
@@ -60,6 +71,18 @@ export default function Dashboard() {
   const [showEditCourse, setShowEditCourse] = useState(false);
   const [editingCourse, setEditingCourse] = useState<any>(null);
   const [courseForm, setCourseForm] = useState({ title: '', description: '', price: '', thumbnail: '' });
+
+  useEffect(() => {
+    if (isAdmin) {
+      if (!['enrollments', 'manage_courses', 'manage_users', 'cert_requests'].includes(activeTab)) {
+        setActiveTab('enrollments');
+      }
+    } else {
+      if (!['my_courses', 'requests', 'referrals'].includes(activeTab)) {
+        setActiveTab('my_courses');
+      }
+    }
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!user) return;
@@ -76,6 +99,17 @@ export default function Dashboard() {
       console.error("Enrollment sub error:", error);
       toast.error("Failed to sync enrollments. Please check your connection.");
       setLoading(false);
+    });
+
+    // Real-time completion requests
+    const certReqQuery = isAdmin ? 
+      query(collection(db, 'completion_requests'), orderBy('createdAt', 'desc')) : 
+      query(collection(db, 'completion_requests'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+
+    const unsubCertReq = onSnapshot(certReqQuery, (snapshot) => {
+      setCompletionRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error("Cert request sub error:", error);
     });
 
     // Fetch all courses for admin
@@ -97,6 +131,7 @@ export default function Dashboard() {
 
     return () => {
       unsubEnroll();
+      unsubCertReq();
       unsubCourses();
       unsubUsers();
     };
@@ -259,19 +294,151 @@ export default function Dashboard() {
       return;
     }
 
-    const toastId = toast.loading("Removing user and clearing logs...");
+    if (!window.confirm("Are you sure you want to PERMANENTLY delete this user? This will also remove all their course enrollments, certificate requests, and payment records. This action cannot be undone.")) {
+      return;
+    }
+
+    const toastId = toast.loading("Removing user and clearing data...");
     try {
       // 1. Delete all enrollments related to this user
-      const userEnrollments = enrollments.filter(e => e.userId === userId);
-      const deletePromises = userEnrollments.map(e => deleteDoc(doc(db, 'enrollments', e.id)));
-      await Promise.all(deletePromises);
+      const enrollQuery = query(collection(db, 'enrollments'), where('userId', '==', userId));
+      const enrollSnap = await getDocs(enrollQuery);
+      
+      const enrollDeletePromises = enrollSnap.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(enrollDeletePromises);
 
-      // 2. Delete the user document
+      // 2. Delete all certificate requests related to this user
+      const certQuery = query(collection(db, 'completion_requests'), where('userId', '==', userId));
+      const certSnap = await getDocs(certQuery);
+      const certDeletePromises = certSnap.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(certDeletePromises);
+
+      // 3. Delete the user document
       await deleteDoc(doc(db, 'users', userId));
       
-      toast.success(`User and their ${userEnrollments.length} requests cleared`, { id: toastId });
+      toast.success(`User data cleared: ${enrollSnap.size} enrollments and ${certSnap.size} certificate requests removed.`, { id: toastId });
     } catch (error: any) {
+      console.error("Cleanup failed:", error);
       toast.error("Cleanup failed: " + error.message, { id: toastId });
+    }
+  };
+
+  const handleToggleRole = async (userId: string, currentRole: string) => {
+    if (userId === user?.uid) {
+      toast.error("You cannot change your own role.");
+      return;
+    }
+
+    const newRole = currentRole === 'admin' ? 'student' : 'admin';
+    if (!window.confirm(`Are you sure you want to make this user a ${newRole}?`)) {
+      return;
+    }
+
+    const toastId = toast.loading(`Updating user to ${newRole}...`);
+    try {
+      await updateDoc(doc(db, 'users', userId), {
+        role: newRole,
+        updatedAt: serverTimestamp()
+      });
+      toast.success(`User is now a ${newRole}`, { id: toastId });
+    } catch (error: any) {
+      toast.error("Failed to update role: " + error.message, { id: toastId });
+    }
+  };
+
+  const downloadExistingCertificate = (courseId: string) => {
+    const cert = profile?.certificates?.find((c: any) => c.courseId === courseId);
+    if (cert && cert.certificateUrl) {
+      const link = document.createElement('a');
+      link.href = cert.certificateUrl;
+      link.download = `${cert.courseTitle.replace(/\s+/g, '_')}_Certificate.pdf`;
+      link.click();
+    }
+  };
+
+  const handleRequestCertificate = async (course: any) => {
+    if (!profile || !user) return;
+    
+    const existingReq = completionRequests.find(r => r.courseId === course.id && r.status === 'pending');
+    if (existingReq) {
+      toast.error("You already have a pending request for this certificate.");
+      return;
+    }
+
+    const toastId = toast.loading("Sending request to admin...");
+    try {
+      await addDoc(collection(db, 'completion_requests'), {
+        userId: user.uid,
+        userName: profile.name,
+        courseId: course.id,
+        courseTitle: course.title,
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      toast.success("Request sent! Admin will review and issue your certificate soon.", { id: toastId });
+    } catch (error: any) {
+      toast.error("Failed to send request: " + error.message, { id: toastId });
+    }
+  };
+
+  const handleApproveCompletion = async (request: any) => {
+    const toastId = toast.loading(`Generating certificate for ${request.userName}...`);
+    setIsGenerating(true);
+    
+    // Set data for the hidden template to render
+    const certId = Math.random().toString(36).substring(2, 10).toUpperCase();
+    setCertData({
+      userName: request.userName,
+      courseTitle: request.courseTitle,
+      date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
+      certificateId: certId
+    });
+
+    // Wait for the Template to render in the certData state
+    setTimeout(async () => {
+      try {
+        // 1. Generate and save PDF to user profile
+        await generateAndSaveCertificate(
+          request.userId,
+          request.userName,
+          request.courseId,
+          request.courseTitle
+        );
+        
+        // 2. Add course to completed courses list if not already there
+        const userRef = doc(db, 'users', request.userId);
+        await updateDoc(userRef, {
+          completedCourses: arrayUnion(request.courseId)
+        });
+
+        // 3. Update request status
+        await updateDoc(doc(db, 'completion_requests', request.id), { 
+          status: 'issued',
+          certificateId: certId,
+          updatedAt: serverTimestamp()
+        });
+
+        toast.success(`Certificate issued to ${request.userName}!`, { id: toastId });
+      } catch (error: any) {
+        toast.error("Failed to issue certificate: " + error.message, { id: toastId });
+      } finally {
+        setIsGenerating(false);
+        setCertData(null);
+      }
+    }, 800);
+  };
+
+  const handleRejectCompletion = async (id: string) => {
+    if (!window.confirm("Are you sure you want to reject this certificate request?")) return;
+    
+    try {
+      await updateDoc(doc(db, 'completion_requests', id), { 
+        status: 'rejected',
+        updatedAt: serverTimestamp()
+      });
+      toast.error("Certificate request rejected");
+    } catch (error: any) {
+      toast.error(error.message);
     }
   };
 
@@ -297,29 +464,48 @@ export default function Dashboard() {
               <>
                 <button 
                   onClick={() => setActiveTab('my_courses')}
-                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'my_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                  className={cn(
+                    "flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
+                    activeTab === 'my_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-primary'
+                  )}
                 >
                   <BookOpen className="h-4 w-4" />
                   <span>My Courses</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab('requests')}
-                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'requests' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                  className={cn(
+                    "flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
+                    activeTab === 'requests' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-primary'
+                  )}
                 >
                   <Clock className="h-4 w-4" />
                   <span>Status</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('referrals')}
+                  className={cn(
+                    "flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
+                    activeTab === 'referrals' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-primary'
+                  )}
+                >
+                  <Gift className="h-4 w-4" />
+                  <span>Referrals</span>
                 </button>
               </>
             ) : (
               <>
                 <button 
                   onClick={() => setActiveTab('enrollments')}
-                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all relative ${activeTab === 'enrollments' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                  className={cn(
+                    "flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all relative whitespace-nowrap",
+                    activeTab === 'enrollments' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-primary'
+                  )}
                 >
                   <CreditCard className="h-4 w-4" />
                   <span>Enrollments</span>
                   {enrollments.filter(e => e.status === 'pending').length > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                    <span className="absolute top-0 right-1 flex h-4 w-4">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] items-center justify-center text-white font-black">
                         {enrollments.filter(e => e.status === 'pending').length}
@@ -329,17 +515,41 @@ export default function Dashboard() {
                 </button>
                 <button 
                   onClick={() => setActiveTab('manage_courses')}
-                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'manage_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                  className={cn(
+                    "flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
+                    activeTab === 'manage_courses' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-primary'
+                  )}
                 >
                   <LayoutDashboard className="h-4 w-4" />
-                  <span>Manage Catalog</span>
+                  <span>Catalog</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab('manage_users')}
-                  className={`flex items-center space-x-2 px-4 md:px-6 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${activeTab === 'manage_users' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}
+                  className={cn(
+                    "flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
+                    activeTab === 'manage_users' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-primary'
+                  )}
                 >
                   <Users className="h-4 w-4" />
                   <span>Users</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('cert_requests')}
+                  className={cn(
+                    "flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all relative whitespace-nowrap",
+                    activeTab === 'cert_requests' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-primary'
+                  )}
+                >
+                  <Award className="h-4 w-4" />
+                  <span>Certs</span>
+                  {completionRequests.filter(r => r.status === 'pending').length > 0 && (
+                    <span className="absolute top-0 right-1 flex h-4 w-4">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 text-[10px] items-center justify-center text-white font-black">
+                        {completionRequests.filter(r => r.status === 'pending').length}
+                      </span>
+                    </span>
+                  )}
                 </button>
               </>
             )}
@@ -349,6 +559,111 @@ export default function Dashboard() {
 
       <main>
         <AnimatePresence mode="wait">
+          {activeTab === 'referrals' && !isAdmin && (
+            <motion.div 
+              key="referrals"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-8"
+            >
+              <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 md:p-12 rounded-[2.5rem] text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full translate-x-1/3 -translate-y-1/3 blur-3xl" />
+                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                  <div className="space-y-4">
+                    <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-400 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
+                      <Gift className="h-4 w-4" />
+                      Referral Program
+                    </div>
+                    <h2 className="text-3xl md:text-5xl font-black tracking-tight">Earn ₹50 for <span className="text-emerald-400">Every Friend!</span></h2>
+                    <p className="text-slate-400 font-medium max-w-lg">Invite your friends to level up. When your friend joins a course using your link, you get ₹50 directly in your account. Reach 100 successful joins for a massive ₹500 bonus!</p>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/10 space-y-4 w-full md:w-auto">
+                    <div className="text-center">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Earned</div>
+                      <div className="text-4xl font-black text-emerald-400">₹0</div>
+                    </div>
+                    <div className="h-[1px] bg-white/5" />
+                    <div className="text-center">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Friends Joined</div>
+                      <div className="text-xl font-black text-white">0</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-slate-800">Your Sharing Link</h3>
+                    <p className="text-sm text-slate-500 font-medium">Send this link to your friends on WhatsApp or Facebook.</p>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-slate-50 border border-slate-100 p-4 rounded-2xl truncate text-xs font-mono text-slate-400">
+                      {window.location.origin}/?ref={user?.uid.substring(0, 8)}
+                    </div>
+                  <div className="bg-slate-900 text-white p-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-slate-200 shrink-0 flex items-center justify-center cursor-pointer"
+                    onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/?ref=${user?.uid.substring(0, 8)}`);
+                        toast.success("Link copied! Now paste it on WhatsApp.");
+                    }}
+                  >
+                    <Copy className="h-5 w-5" />
+                  </div>
+                  <div className="bg-emerald-500 text-white p-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-200 shrink-0 flex items-center justify-center cursor-pointer"
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({
+                          title: 'Stricth Toppers',
+                          text: 'Join me and learn new skills. Use my link to sign up!',
+                          url: `${window.location.origin}/?ref=${user?.uid.substring(0, 8)}`
+                        });
+                      }
+                    }}
+                  >
+                    <Share2 className="h-5 w-5" />
+                  </div>
+                  </div>
+
+                  <div className="pt-4 space-y-4">
+                    <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none">How it works</h4>
+                    <div className="grid gap-4">
+                      {[
+                        { step: "01", text: "Send your link to your friends" },
+                        { step: "02", text: "They sign up and join a course" },
+                        { step: "03", text: "We send you ₹50 instantly" },
+                        { step: "04", text: "Reach 100 users for ₹500 bonus" }
+                      ].map((step, i) => (
+                        <div key={i} className="flex items-center gap-4">
+                          <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">{step.step}</div>
+                          <p className="text-sm font-medium text-slate-600">{step.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-2">
+                    <Users className="h-10 w-10 text-slate-200" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-800 tracking-tight">No reward yet</h3>
+                  <p className="text-sm text-slate-400 font-medium max-w-[250px]">Start sending your link to friends to earn your first reward!</p>
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/?ref=${user?.uid.substring(0, 8)}`);
+                      toast.success("Link copied! Share it now.");
+                    }}
+                    className="bg-emerald-50 text-emerald-600 px-8 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-100 transition-all mt-4"
+                  >
+                    Copy invite link
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {activeTab === 'enrollments' && isAdmin && (
             <motion.div 
               key="enrollments"
@@ -545,14 +860,44 @@ export default function Dashboard() {
               className="space-y-6"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <h2 className="text-xl md:text-2xl font-bold text-slate-800">Site Users</h2>
+                <div className="space-y-1">
+                  <h2 className="text-xl md:text-2xl font-bold text-slate-800">Site Users</h2>
+                  <p className="text-xs md:text-sm text-slate-500 font-medium">View and manage all registered users and their details.</p>
+                </div>
                 <div className="bg-slate-100 text-slate-600 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border border-slate-200 w-fit">
                   {siteUsers.length} Registered
                 </div>
               </div>
 
+              {/* User Search */}
+              <div className="bg-white p-4 md:p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input 
+                    type="text"
+                    placeholder="Search users by name or email..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-sm font-medium"
+                  />
+                  {userSearch && (
+                    <button 
+                      onClick={() => setUserSearch('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200 rounded-full transition-colors"
+                    >
+                      <X className="h-4 w-4 text-slate-400" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="grid gap-3 md:gap-4">
-                {siteUsers.map((siteUser) => (
+                {siteUsers
+                  .filter(u => 
+                    u.name?.toLowerCase().includes(userSearch.toLowerCase()) || 
+                    u.email?.toLowerCase().includes(userSearch.toLowerCase())
+                  )
+                  .map((siteUser) => (
                   <div key={siteUser.id} className="bg-white p-4 md:p-5 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group hover:border-emerald-100 transition-colors">
                     <div className="flex items-center gap-4 w-full md:w-auto">
                       <div className="relative shrink-0">
@@ -567,11 +912,37 @@ export default function Dashboard() {
                       <div className="overflow-hidden">
                         <div className="font-bold text-slate-800 flex flex-wrap items-center gap-2">
                           <span className="truncate max-w-[150px] sm:max-w-none text-sm md:text-base">{siteUser.name}</span>
-                          {siteUser.role === 'admin' && (
-                            <span className="text-[9px] bg-slate-900 text-white px-1.5 py-0.5 rounded-md uppercase tracking-tighter">Admin</span>
-                          )}
+                          <button 
+                            onClick={() => handleToggleRole(siteUser.id, siteUser.role)}
+                            className={cn(
+                              "text-[9px] px-1.5 py-0.5 rounded-md uppercase tracking-tighter transition-colors",
+                              siteUser.role === 'admin' ? "bg-slate-900 text-white hover:bg-emerald-600" : "bg-slate-100 text-slate-400 hover:bg-slate-900 hover:text-white"
+                            )}
+                            title="Click to toggle role"
+                          >
+                            {siteUser.role === 'admin' ? 'Admin' : 'Student'}
+                          </button>
                         </div>
                         <div className="text-[10px] md:text-xs text-slate-500 truncate">{siteUser.email}</div>
+                        <div className="flex flex-col gap-1 mt-1">
+                          {siteUser.referredBy && (() => {
+                            const referrer = siteUsers.find(u => u.uid === siteUser.referredBy || u.shortId === siteUser.referredBy);
+                            return (
+                              <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">
+                                Ref By: {referrer ? referrer.name : siteUser.referredBy}
+                              </div>
+                            );
+                          })()}
+                          {(() => {
+                            const referralCount = siteUsers.filter(u => u.referredBy === siteUser.uid || u.referredBy === siteUser.shortId).length;
+                            return referralCount > 0 && (
+                              <div className="text-[10px] text-primary font-bold uppercase tracking-wider flex items-center gap-1">
+                                <Users className="h-2.5 w-2.5" />
+                                Referred: {referralCount} {referralCount >= 100 ? "🔥 (Earned ₹500 Bonus)" : `(Earned ₹${referralCount * 50})`}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4 pt-4 md:pt-0 border-t md:border-t-0 border-slate-50 mt-1 md:mt-0">
@@ -614,6 +985,17 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+
+                {siteUsers.length > 0 && siteUsers.filter(u => 
+                  u.name?.toLowerCase().includes(userSearch.toLowerCase()) || 
+                  u.email?.toLowerCase().includes(userSearch.toLowerCase())
+                ).length === 0 && (
+                  <div className="text-center py-20 bg-slate-50 rounded-[3rem] border border-slate-100">
+                    <Search className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                    <p className="text-slate-400 font-bold">No users found matching "{userSearch}"</p>
+                    <button onClick={() => setUserSearch('')} className="mt-2 text-emerald-500 font-bold hover:underline">Clear Search</button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -682,12 +1064,45 @@ export default function Dashboard() {
                         </div>
                         <div className="space-y-2">
                           <div className="w-full bg-slate-100 h-1.5 md:h-2 rounded-full overflow-hidden">
-                            <div className="bg-emerald-500 h-full w-1/3 rounded-full"></div>
+                            <div className={cn(
+                              "h-full transition-all duration-1000",
+                              profile?.completedCourses?.includes(course.id) ? "w-full bg-emerald-500" : "w-1/3 bg-emerald-500"
+                            )}></div>
                           </div>
                           <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            <span>35% Complete</span>
-                            <span className="hidden xs:inline">Next: Module 4</span>
+                            <span>{profile?.completedCourses?.includes(course.id) ? "100%" : "35%"} Complete</span>
+                            {!profile?.completedCourses?.includes(course.id) && <span className="hidden xs:inline">Next: Module 4</span>}
                           </div>
+                        </div>
+
+                        <div className="pt-2">
+                          {profile?.completedCourses?.includes(course.id) ? (
+                            <button 
+                              onClick={() => downloadExistingCertificate(course.id)}
+                              className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-50 text-emerald-600 rounded-2xl font-bold hover:bg-emerald-100 transition-all border border-emerald-100"
+                            >
+                              <Download className="h-4 w-4" />
+                              <span>Download Certificate</span>
+                            </button>
+                          ) : (
+                            <div>
+                              {completionRequests.find(r => r.courseId === course.id && r.status === 'pending') ? (
+                                <div className="w-full py-3 bg-slate-50 text-slate-400 rounded-2xl font-bold border border-slate-100 flex items-center justify-center gap-2 cursor-default">
+                                  <Clock className="h-4 w-4" />
+                                  <span>Pending Approval</span>
+                                </div>
+                              ) : (
+                                <button 
+                                  onClick={() => handleRequestCertificate(course)}
+                                  disabled={isGenerating}
+                                  className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+                                >
+                                  <Award className="h-4 w-4" />
+                                  <span>{isGenerating ? "Processing..." : "Request Certificate"}</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -709,6 +1124,77 @@ export default function Dashboard() {
                     <Search className="h-12 w-12 text-slate-200 mx-auto mb-4" />
                     <p className="text-slate-400 font-bold">No enrolled courses found matching "{courseSearch}"</p>
                     <button onClick={() => setCourseSearch('')} className="mt-2 text-emerald-500 font-bold hover:underline">Clear Search</button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'cert_requests' && isAdmin && (
+            <motion.div 
+              key="cert_requests"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <h2 className="text-xl md:text-2xl font-bold text-slate-800">Certificate Requests</h2>
+                  <p className="text-xs md:text-sm text-slate-500 font-medium">Approve completion requests to issue official certificates.</p>
+                </div>
+                <div className="bg-emerald-50 text-emerald-700 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border border-emerald-100 w-fit">
+                  {completionRequests.filter(r => r.status === 'pending').length} Unissued
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                {completionRequests.map((req) => (
+                  <div key={req.id} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-emerald-100 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 bg-slate-50 rounded-xl flex items-center justify-center text-emerald-600">
+                        <Award className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-800">{req.userName}</h3>
+                        <p className="text-xs text-slate-400 font-medium">Course: {req.courseTitle}</p>
+                        <p className="text-[10px] text-slate-400">{formatDate(req.createdAt)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                      {req.status === 'pending' ? (
+                        <>
+                          <button 
+                            onClick={() => handleApproveCompletion(req)}
+                            disabled={isGenerating}
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50"
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            Issue Certificate
+                          </button>
+                          <button 
+                            onClick={() => handleRejectCompletion(req.id)}
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-500 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-500"
+                          >
+                            <XCircle className="h-4 w-4" />
+                            Reject
+                          </button>
+                        </>
+                      ) : (
+                        <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${req.status === 'issued' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-400'}`}>
+                          {req.status === 'issued' ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                          {req.status}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                {completionRequests.length === 0 && (
+                  <div className="text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
+                    <Award className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                    <p className="text-slate-400 font-bold">No certificate requests found</p>
                   </div>
                 )}
               </div>
@@ -978,6 +1464,18 @@ export default function Dashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      {/* Hidden Certificate Template for PDF Generation */}
+      <div className="fixed -left-[10000px] -top-[10000px] pointer-events-none" aria-hidden="true">
+        {certData && (
+          <CertificateTemplate 
+            userName={certData.userName}
+            courseTitle={certData.courseTitle}
+            date={certData.date}
+            certificateId={certData.certificateId}
+          />
+        )}
+      </div>
     </div>
   );
 }

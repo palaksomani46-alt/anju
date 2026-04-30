@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Mail, Lock, User, Chrome, Check } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -17,6 +17,7 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -40,6 +41,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         toast.success('Account created successfully!');
       }
       onClose();
+      navigate('/dashboard');
     } catch (error: any) {
       toast.error(error.message);
     } finally {
@@ -58,6 +60,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       await signInWithPopup(auth, provider);
       toast.success('Signed in with Google');
       onClose();
+      navigate('/dashboard');
     } catch (error: any) {
       toast.error(error.message);
     } finally {

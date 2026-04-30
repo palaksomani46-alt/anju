@@ -31,7 +31,7 @@ export default function TermsOfUse() {
               <CheckCircle className="h-6 w-6 text-emerald-500" />
               1. Acceptance
             </h2>
-            <p className="text-sm text-slate-600 leading-relaxed font-medium">By accessing <span className="text-slate-900 font-bold">Strictch Toppers</span>, you agree to be bound by these Terms of Use and all applicable laws and regulations of the region.</p>
+            <p className="text-sm text-slate-600 leading-relaxed font-medium">By accessing <span className="text-slate-900 font-bold">Stricth Toppers</span>, you agree to be bound by these Terms of Use and all applicable laws and regulations of the region.</p>
           </div>
           <div className="p-8 bg-white border border-slate-100 rounded-[2rem] shadow-sm hover:shadow-md transition-shadow">
             <h2 className="text-lg md:text-xl font-black text-slate-900 flex items-center gap-3 mb-4">
@@ -49,7 +49,7 @@ export default function TermsOfUse() {
             3. Intellectual Property
           </h2>
           <p className="text-slate-300 text-sm md:text-base leading-relaxed font-medium relative z-10">
-            All course materials, including proprietary videos, instructional PDFs, and mentorship frameworks, are the exclusive intellectual property of <span className="text-white font-bold underline decoration-emerald-500 decoration-2 underline-offset-4">Strictch Toppers</span> and Anju Somani. Unauthorized sharing, recording, or commercial redistribution is strictly prohibited and will be met with immediate legal prosecution.
+            All course materials, including proprietary videos, instructional PDFs, and mentorship frameworks, are the exclusive intellectual property of <span className="text-white font-bold underline decoration-emerald-500 decoration-2 underline-offset-4">Stricth Toppers</span> and Anju Somani. Unauthorized sharing, recording, or commercial redistribution is strictly prohibited and will be met with immediate legal prosecution.
           </p>
         </section>
 
@@ -72,7 +72,7 @@ export default function TermsOfUse() {
         </section>
 
         <div className="text-center pt-8 border-t border-slate-100">
-          <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] font-black">Legal Inquiries: somanimayank723@gmail.com</p>
+          <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] font-black">Legal Inquiries: palaksomani46@gmail.com</p>
         </div>
       </motion.div>
     </div>

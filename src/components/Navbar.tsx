@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { auth, db } from '../lib/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { LogOut, User as UserIcon, BookOpen, Menu, X, ArrowRight } from 'lucide-react';
+import { LogOut, User as UserIcon, BookOpen, Menu, X, ArrowRight, MessageCircle } from 'lucide-react';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -44,14 +44,14 @@ export default function Navbar() {
       <div className="container mx-auto h-full">
         <div className="flex h-full items-center justify-between">
           <Link to="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
+            <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-emerald-100">
               S
             </div>
-            <span className="text-xl font-bold tracking-tight text-slate-900">Strictch<span className="text-green-600">Toppers</span></span>
+            <span className="text-xl font-bold tracking-tight text-slate-900">Stricth<span className="text-green-600">Toppers</span></span>
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden lg:flex items-center space-x-8">
             <Link to="/" className={cn(
                "text-sm font-medium transition-all",
                window.location.pathname === '/' ? "text-green-600 border-b-2 border-green-500 pb-1" : "text-slate-600 hover:text-green-600"
@@ -93,13 +93,40 @@ export default function Navbar() {
           </div>
 
           {/* Mobile menu button */}
-          <div className="md:hidden">
+          <div className="lg:hidden flex items-center gap-2">
+            <a 
+              href="https://wa.me/yournumber" 
+              target="_blank" 
+              rel="noreferrer"
+              className="p-2 bg-emerald-500 text-white rounded-lg shadow-lg shadow-emerald-200"
+            >
+              <MessageCircle className="h-5 w-5" />
+            </a>
+            {user && (
+              <Link to="/dashboard" className="p-2 bg-slate-100 rounded-lg text-slate-600">
+                <UserIcon className="h-5 w-5" />
+              </Link>
+            )}
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 text-slate-600">
               {isMenuOpen ? <X /> : <Menu />}
             </button>
           </div>
         </div>
       </div>
+
+      {/* Floating WhatsApp for Desktop */}
+      <a 
+        href="https://wa.me/yournumber" 
+        target="_blank" 
+        rel="noreferrer"
+        className="hidden lg:flex fixed bottom-8 right-8 z-50 bg-emerald-500 text-white p-4 rounded-2xl shadow-2xl shadow-emerald-200 items-center gap-3 hover:scale-105 active:scale-95 transition-all group"
+      >
+        <div className="flex flex-col items-end">
+          <span className="text-[10px] font-black uppercase tracking-widest opacity-70">Need Help?</span>
+          <span className="text-sm font-bold">Chat with Ma'am</span>
+        </div>
+        <MessageCircle className="h-6 w-6" />
+      </a>
 
       {/* Mobile Nav Overlay */}
       <AnimatePresence>
@@ -110,13 +137,13 @@ export default function Navbar() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMenuOpen(false)}
-              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm md:hidden z-[-1]"
+              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm lg:hidden z-[-1]"
             />
             <motion.div 
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="md:hidden bg-white border-t border-slate-100 shadow-2xl absolute left-0 right-0"
+              className="lg:hidden bg-white border-t border-slate-100 shadow-2xl absolute left-0 right-0"
             >
               <div className="flex flex-col p-6 space-y-5">
                 <Link to="/" onClick={() => setIsMenuOpen(false)} className="text-slate-900 font-bold text-lg flex items-center justify-between">

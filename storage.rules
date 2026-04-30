@@ -3,14 +3,12 @@ service firebase.storage {
   match /b/{bucket}/o {
     match /payments/{allPaths=**} {
       allow read: if request.auth != null && (
-        request.auth.token.email == 'somanimayank723@gmail.com' || 
         request.auth.token.email == 'palaksomani46@gmail.com' ||
         resource.metadata.userId == request.auth.uid
       );
       allow create: if request.auth != null && 
         request.resource.metadata.userId == request.auth.uid;
       allow update, delete: if request.auth != null && (
-        request.auth.token.email == 'somanimayank723@gmail.com' || 
         request.auth.token.email == 'palaksomani46@gmail.com'
       );
     }

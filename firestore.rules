@@ -14,9 +14,7 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
       return isSignedIn() && (
-        request.auth.token.email == 'somanimayank723@gmail.com' || 
-        request.auth.token.email == 'palaksomani46@gmail.com' ||
-        request.auth.token.email == 'somanianju46@gmail.com'
+        request.auth.token.email.lower() == 'palaksomani46@gmail.com'
       ); 
     }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
@@ -32,7 +30,7 @@ service cloud.firestore {
         && data.email == request.auth.token.email
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
         && data.role in ['student', 'admin']
-        && (data.role == 'admin' ? (data.email == 'somanimayank723@gmail.com' || data.email == 'palaksomani46@gmail.com' || data.email == 'somanianju46@gmail.com') : true)
+        && (data.role == 'admin' ? (data.email.lower() == 'palaksomani46@gmail.com') : true)
         && data.createdAt == request.time;
     }
 
@@ -60,6 +58,15 @@ service cloud.firestore {
         && data.createdAt == request.time;
     }
 
+    function isValidCompletionRequest(data) {
+      return data.userId == request.auth.uid
+        && data.userName is string && data.userName.size() > 0
+        && data.courseId is string && data.courseId.size() <= 128
+        && data.courseTitle is string && data.courseTitle.size() > 0
+        && data.status == 'pending'
+        && data.createdAt == request.time;
+    }
+
     // --- match Blocks ---
 
     match /users/{userId} {
@@ -71,8 +78,12 @@ service cloud.firestore {
         (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'lastSeen'])) ||
         // Action: Update Profile (Student)
         (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'status', 'lastSeen'])) ||
-        // Action: Admin Enrollment Update
-        (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['enrolledCourses', 'role']))
+        // Action: Admin Data Update (Enrollment / Certificates / Roles)
+        (isAdmin() && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['enrolledCourses', 'role']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['completedCourses', 'certificates']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['enrolledCourses', 'completedCourses', 'certificates', 'role'])
+        ))
       );
       allow delete: if isAdmin();
     }
@@ -89,6 +100,14 @@ service cloud.firestore {
       allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && isValidEnrollment(incoming()) && incoming().status == 'pending';
       allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+      allow delete: if isAdmin();
+    }
+
+    match /completion_requests/{requestId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidCompletionRequest(incoming());
+      allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasAny(['status', 'certificateId', 'updatedAt']);
       allow delete: if isAdmin();
     }
   }

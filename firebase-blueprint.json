@@ -10,12 +10,30 @@
         "email": { "type": "string", "format": "email" },
         "phone": { "type": "string" },
         "role": { "type": "string", "enum": ["student", "admin"] },
+        "shortId": { "type": "string", "description": "8-character short version of UID for referral links" },
         "enrolledCourses": {
           "type": "array",
           "items": { "type": "string" }
         },
+        "completedCourses": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "certificates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "courseId": { "type": "string" },
+              "courseTitle": { "type": "string" },
+              "issueDate": { "type": "string", "format": "date-time" },
+              "certificateUrl": { "type": "string", "description": "Base64 PDF string" }
+            }
+          }
+        },
         "status": { "type": "string", "enum": ["online", "offline"] },
         "lastSeen": { "type": "string", "format": "date-time" },
+        "referredBy": { "type": "string", "description": "UID of the user who referred this user" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "name", "email", "role", "createdAt"]
@@ -54,6 +72,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "courseId", "amount", "userPhone", "proofUrl", "transactionId", "status", "createdAt"]
+    },
+    "CompletionRequest": {
+      "title": "Completion Request",
+      "description": "Request from a student for course completion certificate",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "courseId": { "type": "string" },
+        "courseTitle": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "issued", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "userName", "courseId", "courseTitle", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -68,6 +101,10 @@
     "/enrollments/{enrollmentId}": {
       "schema": "Enrollment",
       "description": "Store for enrollment requests"
+    },
+    "/completion_requests/{requestId}": {
+      "schema": "CompletionRequest",
+      "description": "Certificate requests waiting for admin approval"
     }
   }
 }
