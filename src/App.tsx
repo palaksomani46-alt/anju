@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc, serverTimestamp, updateDoc, onSnapshot } from 'fir
 import { auth, db } from './lib/firebase';
 import { Toaster, toast } from 'sonner';
 import Navbar from './components/Navbar';
+import FloatingWhatsApp from './components/FloatingWhatsApp';
 import Home from './pages/Home';
 import CourseDetail from './pages/CourseDetail';
 import Dashboard from './pages/Dashboard';
@@ -168,6 +169,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </main>
+          <FloatingWhatsApp />
           <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
           <Toaster position="top-center" richColors />
         </div>

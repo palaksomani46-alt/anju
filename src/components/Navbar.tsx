@@ -95,7 +95,7 @@ export default function Navbar() {
           {/* Mobile menu button */}
           <div className="lg:hidden flex items-center gap-2">
             <a 
-              href="https://wa.me/yournumber" 
+              href="https://wa.me/918660888419" 
               target="_blank" 
               rel="noreferrer"
               className="p-2 bg-emerald-500 text-white rounded-lg shadow-lg shadow-emerald-200"
@@ -113,20 +113,6 @@ export default function Navbar() {
           </div>
         </div>
       </div>
-
-      {/* Floating WhatsApp for Desktop */}
-      <a 
-        href="https://wa.me/yournumber" 
-        target="_blank" 
-        rel="noreferrer"
-        className="hidden lg:flex fixed bottom-8 right-8 z-50 bg-emerald-500 text-white p-4 rounded-2xl shadow-2xl shadow-emerald-200 items-center gap-3 hover:scale-105 active:scale-95 transition-all group"
-      >
-        <div className="flex flex-col items-end">
-          <span className="text-[10px] font-black uppercase tracking-widest opacity-70">Need Help?</span>
-          <span className="text-sm font-bold">Chat with Ma'am</span>
-        </div>
-        <MessageCircle className="h-6 w-6" />
-      </a>
 
       {/* Mobile Nav Overlay */}
       <AnimatePresence>

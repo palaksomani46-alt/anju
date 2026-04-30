@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../App';
 import CourseCard from '../components/CourseCard';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
-import { CheckCircle, ShieldCheck, Zap, Users, ArrowRight, BookOpen, MessageCircle, Mail, Phone, Star, Gift, Globe, Award, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpen, Star, Gift, Globe, Award, Sparkles, Zap, Users, ShieldCheck } from 'lucide-react';
 
 export default function Home() {
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { openAuth, user, profile } = useAuth();
+  const navigate = useNavigate();
   
   const handleGetReferralLink = () => {
     if (!user) {
@@ -57,7 +58,6 @@ export default function Home() {
       setLoading(false);
     });
 
-    // Handle hash scroll on mount
     if (window.location.hash === '#courses') {
       setTimeout(() => {
         const el = document.getElementById('courses');
@@ -70,21 +70,8 @@ export default function Home() {
 
   return (
     <div className="space-y-24 pb-20 relative">
-      {/* Floating WhatsApp Button */}
-      <a 
-        href="https://wa.me/918660888419" 
-        target="_blank" 
-        rel="noreferrer"
-        className="fixed bottom-8 right-8 z-[100] bg-[#25D366] text-white p-4 rounded-full shadow-2xl hover:scale-110 active:scale-95 transition-all flex items-center gap-2 group"
-      >
-        <MessageCircle className="h-6 w-6 fill-white" />
-        <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 whitespace-nowrap font-bold text-sm">
-          Chat Support
-        </span>
-      </a>
-
       {/* Hero Section */}
-      <section className="relative flex min-h-[400px] md:min-h-[500px] lg:min-h-[600px] bg-gradient-to-br from-green-50 via-emerald-50 to-white px-6 md:px-12 items-center overflow-hidden py-16 md:py-24">
+      <section className="relative flex min-h-[400px] md:min-h-[500px] lg:min-h-[600px] bg-gradient-to-br from-green-50 via-emerald-50 to-white px-6 md:px-12 items-center overflow-hidden py-16 md:py-24 rounded-[3rem] mt-4">
         <div className="container mx-auto flex flex-col lg:flex-row items-center gap-12 relative text-center lg:text-left">
           <div className="flex-1 z-10 w-full">
             <motion.div
@@ -128,11 +115,19 @@ export default function Home() {
                   Get Started Now
                 </button>
               ) : (
-                 <a href="#courses" className="w-full sm:w-auto text-center px-10 py-4 bg-slate-900 text-white font-black rounded-2xl shadow-2xl shadow-slate-200 hover:scale-[1.03] transition-all uppercase tracking-widest text-xs">
+                 <a href="#courses" onClick={(e) => {
+                   e.preventDefault();
+                   document.getElementById('courses')?.scrollIntoView({ behavior: 'smooth' });
+                 }} className="w-full sm:w-auto text-center px-10 py-4 bg-slate-900 text-white font-black rounded-2xl shadow-2xl shadow-slate-200 hover:scale-[1.03] transition-all uppercase tracking-widest text-xs">
                   Browse Catalog
                 </a>
               )}
-              <button className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-white border border-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all text-xs">
+              <button 
+                onClick={() => {
+                  document.getElementById('testimonials')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-white border border-slate-100 text-slate-600 font-bold rounded-2xl hover:bg-slate-50 transition-all text-xs"
+              >
                 <span>Success Stories</span>
                 <ArrowRight className="h-4 w-4" />
               </button>
@@ -172,8 +167,8 @@ export default function Home() {
             </div>
           </div>
           <div className="flex-1 grid grid-cols-2 gap-4">
-             <img src="https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=400" className="rounded-3xl h-48 w-full object-cover grayscale active:grayscale-0 transition-all" alt="Study group" />
-             <img src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?q=80&w=400" className="rounded-3xl h-48 w-full object-cover mt-8" alt="Classroom" />
+             <img src="https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=400" className="rounded-3xl h-48 w-full object-cover grayscale active:grayscale-0 transition-all shadow-lg" alt="Study group" />
+             <img src="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?q=80&w=400" className="rounded-3xl h-48 w-full object-cover mt-8 shadow-lg" alt="Classroom" />
           </div>
         </div>
       </section>
@@ -196,11 +191,11 @@ export default function Home() {
               Help Your Friends
             </div>
             <h2 className="text-3xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter leading-tight">
-              Invite Friends & <br className="hidden md:block"/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-green-400 drop-shadow-sm">Earn Rewards!</span>
+              Bring 50 Friends & <br className="hidden md:block"/>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-green-400 drop-shadow-sm">Earn ₹500 Cash!</span>
             </h2>
             <p className="text-slate-400 font-medium text-base md:text-lg leading-relaxed">
-              When your friend joins a course, we send <strong>₹50</strong> directly to you. Bring 100 students to get a <strong>₹500</strong> bonus. Everyone wins!
+              Help your community grow! When you refer 50 friends and they enroll in any course, we will send <strong>₹500</strong> directly to your account. Everyone wins!
             </p>
           </div>
 
@@ -213,7 +208,6 @@ export default function Home() {
             >
               <span className="relative z-10">Get Your Link Now</span>
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-100 to-white opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300" />
-              {/* Shimmer effect */}
               <div className="absolute -inset-full h-full w-full bg-gradient-to-r from-transparent via-white/40 to-transparent rotate-45 animate-[shimmer_2s_infinite] pointer-events-none" />
             </motion.button>
             
@@ -331,93 +325,14 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="pt-24 border-t border-slate-100 px-6 md:px-12 bg-slate-50/50">
-        <div className="grid lg:grid-cols-4 gap-16 pb-16">
-          <div className="lg:col-span-2 space-y-8">
-            <div className="flex items-center space-x-3">
-              <div className="bg-slate-900 p-2.5 rounded-xl shadow-lg">
-                <BookOpen className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-2xl font-black text-slate-900 tracking-tighter">Stricth Toppers</span>
-            </div>
-            <p className="text-slate-500 max-w-sm font-medium leading-relaxed">
-              Empowering the next generation of professional leaders through curated masterclasses and direct mentorship.
-            </p>
-            <div className="flex flex-wrap items-center gap-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
-              <Link to="/privacy" className="hover:text-emerald-600 transition-colors">Privacy Policy</Link>
-              <Link to="/terms" className="hover:text-emerald-600 transition-colors">Terms of Use</Link>
-            </div>
-          </div>
-          
-          <div className="space-y-8">
-            <h4 className="font-black text-slate-900 uppercase text-[10px] tracking-[0.2em]">Contact Us</h4>
-            <div className="flex flex-col space-y-5">
-              <a 
-                href="https://wa.me/918660888419" 
-                target="_blank"
-                rel="noreferrer"
-                className="group flex items-center gap-4 text-sm text-slate-600 hover:text-emerald-600 transition-all"
-              >
-                <div className="bg-white border border-emerald-100 p-2.5 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-sm">
-                  <MessageCircle className="h-5 w-5 text-emerald-500 group-hover:text-white" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-black text-slate-900">WhatsApp</span>
-                  <span className="text-[11px] text-slate-400 font-bold">+91 86608 88419</span>
-                </div>
-              </a>
-              
-              <a 
-                href="mailto:palaksomani46@gmail.com" 
-                className="group flex items-center gap-4 text-sm text-slate-600 hover:text-emerald-600 transition-all"
-              >
-                <div className="bg-white border border-slate-100 p-2.5 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-sm">
-                  <Mail className="h-5 w-5 text-slate-400 group-hover:text-white" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-black text-slate-900">Email Status</span>
-                  <span className="text-[11px] text-slate-400 font-bold">Priority Support</span>
-                </div>
-              </a>
-
-              <a 
-                href="tel:8660888419" 
-                className="group flex items-center gap-4 text-sm text-slate-600 hover:text-emerald-600 transition-all"
-              >
-                <div className="bg-white border border-slate-100 p-2.5 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-sm">
-                  <Phone className="h-5 w-5 text-slate-400 group-hover:text-white" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-black text-slate-900">Call Support</span>
-                  <span className="text-[11px] text-slate-400 font-bold">+91 86608 88419</span>
-                </div>
-              </a>
-            </div>
-          </div>
-
-          <div className="space-y-8">
-            <h4 className="font-black text-slate-900 uppercase text-[10px] tracking-[0.2em]">Our Office</h4>
-            <div className="space-y-4">
-               <div className="flex items-start gap-4 text-sm text-slate-600">
-                  <div className="bg-white border border-slate-100 p-2.5 rounded-xl">
-                    <ShieldCheck className="h-5 w-5 text-slate-400" />
-                  </div>
-                  <div>
-                    <span className="font-black text-slate-900 block mb-1">Global HQ</span>
-                    <span className="text-xs text-slate-400 font-medium">Remote-first cohort with physical hubs in major metros.</span>
-                  </div>
-               </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="py-10 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center md:text-left">
+        <div className="py-10 flex flex-col md:flex-row justify-between items-center gap-6 text-center md:text-left">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             © 2026 Stricth Toppers • Crafted for High Performers
           </p>
-          <div className="flex items-center space-x-6">
-            <div className="h-10 w-10 bg-white border border-slate-100 rounded-xl shadow-sm"></div>
-            <div className="h-10 w-10 bg-white border border-slate-100 rounded-xl shadow-sm"></div>
-            <div className="h-10 w-10 bg-white border border-slate-100 rounded-xl shadow-sm"></div>
+          <div className="flex items-center space-x-6 text-[10px] font-black uppercase tracking-widest text-slate-400">
+              <Link to="/privacy" className="hover:text-emerald-600 transition-colors">Privacy</Link>
+              <Link to="/terms" className="hover:text-emerald-600 transition-colors">Terms</Link>
+              <a href="tel:8660888419" className="hover:text-emerald-600 transition-colors">Contact</a>
           </div>
         </div>
       </footer>

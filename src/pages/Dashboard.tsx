@@ -52,6 +52,8 @@ export default function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState(isAdmin ? 'enrollments' : 'my_courses');
   const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [referredUsers, setReferredUsers] = useState<any[]>([]);
+  const [referredEnrollments, setReferredEnrollments] = useState<any[]>([]);
   const [completionRequests, setCompletionRequests] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [siteUsers, setSiteUsers] = useState<any[]>([]);
@@ -126,6 +128,29 @@ export default function Dashboard() {
         setSiteUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       }, (error) => {
         console.error("Users sub error:", error);
+      });
+    } else {
+      // Fetch referred users for students
+      const refQuery = query(
+        collection(db, 'users'), 
+        where('referredBy', 'in', [user.uid, profile?.shortId].filter(Boolean))
+      );
+      unsubUsers = onSnapshot(refQuery, (snapshot) => {
+        const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+        setReferredUsers(users);
+        
+        // Fetch enrollments status for these users to show in the list
+        if (users.length > 0) {
+          const uids = users.map((u: any) => u.uid).filter(Boolean);
+          // Only fetch if we have UIDs
+          if (uids.length > 0) {
+             const batchUids = uids.slice(0, 10); // Firestore 'in' limit is 10 for some versions, more for others
+             const enrollRefQuery = query(collection(db, 'enrollments'), where('userId', 'in', batchUids));
+             onSnapshot(enrollRefQuery, (enrollSnap) => {
+               setReferredEnrollments(enrollSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+             });
+          }
+        }
       });
     }
 
@@ -575,20 +600,22 @@ export default function Dashboard() {
                       <Gift className="h-4 w-4" />
                       Referral Program
                     </div>
-                    <h2 className="text-3xl md:text-5xl font-black tracking-tight">Earn ₹50 for <span className="text-emerald-400">Every Friend!</span></h2>
-                    <p className="text-slate-400 font-medium max-w-lg">Invite your friends to level up. When your friend joins a course using your link, you get ₹50 directly in your account. Reach 100 successful joins for a massive ₹500 bonus!</p>
+                    <h2 className="text-3xl md:text-5xl font-black tracking-tight">Earn ₹500 for <span className="text-emerald-400">50 Referrals!</span></h2>
+                    <p className="text-slate-400 font-medium max-w-lg">Invite your friends to level up. When 50 friends join a course using your link, you get a massive ₹500 cash reward directly in your account!</p>
                   </div>
-                  <div className="bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/10 space-y-4 w-full md:w-auto">
-                    <div className="text-center">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Earned</div>
-                      <div className="text-4xl font-black text-emerald-400">₹0</div>
+                    <div className="bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/10 space-y-4 w-full md:w-auto">
+                      <div className="text-center">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Earned</div>
+                        <div className="text-4xl font-black text-emerald-400">
+                          ₹{referredEnrollments.filter(e => e.status === 'approved').length >= 50 ? 500 : 0}
+                        </div>
+                      </div>
+                      <div className="h-[1px] bg-white/5" />
+                      <div className="text-center">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Friends Joined</div>
+                        <div className="text-xl font-black text-white">{referredUsers.length}</div>
+                      </div>
                     </div>
-                    <div className="h-[1px] bg-white/5" />
-                    <div className="text-center">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Friends Joined</div>
-                      <div className="text-xl font-black text-white">0</div>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -630,10 +657,10 @@ export default function Dashboard() {
                     <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none">How it works</h4>
                     <div className="grid gap-4">
                       {[
-                        { step: "01", text: "Send your link to your friends" },
-                        { step: "02", text: "They sign up and join a course" },
-                        { step: "03", text: "We send you ₹50 instantly" },
-                        { step: "04", text: "Reach 100 users for ₹500 bonus" }
+                        { step: "01", text: "Send your link to 50 friends" },
+                        { step: "02", text: "They sign up and enroll" },
+                        { step: "03", text: "We verify their enrollment" },
+                        { step: "04", text: "You get ₹500 instantly!" }
                       ].map((step, i) => (
                         <div key={i} className="flex items-center gap-4">
                           <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">{step.step}</div>
@@ -644,21 +671,95 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center space-y-4">
-                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-2">
-                    <Users className="h-10 w-10 text-slate-200" />
+                <div className="space-y-6">
+                  <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-xl font-bold text-slate-800">Your Referrals</h3>
+                      <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest">
+                        {referredUsers.length} Total
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 no-scrollbar">
+                      {referredUsers.length > 0 ? (
+                        referredUsers.map((refUser) => {
+                          const userEnrollments = referredEnrollments.filter(e => e.userId === refUser.uid);
+                          const hasApproved = userEnrollments.some(e => e.status === 'approved');
+                          const isPending = userEnrollments.some(e => e.status === 'pending');
+                          const isCompleted = refUser.completedCourses?.length > 0;
+
+                          return (
+                            <div key={refUser.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-emerald-100 transition-all">
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 bg-white border border-slate-100 rounded-xl flex items-center justify-center font-bold text-slate-400 uppercase">
+                                  {refUser.name?.charAt(0)}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-sm text-slate-800">{refUser.name}</div>
+                                  <div className="text-[10px] text-slate-400 font-medium">{formatDate(refUser.createdAt).split(',')[0]}</div>
+                                </div>
+                              </div>
+                              
+                              <div className="text-right">
+                                {isCompleted ? (
+                                  <div className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                                    <CheckCircle className="h-3 w-3" />
+                                    Completed
+                                  </div>
+                                ) : hasApproved ? (
+                                  <div className="px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                                    <BookOpen className="h-3 w-3" />
+                                    Enrolled
+                                  </div>
+                                ) : isPending ? (
+                                  <div className="px-2.5 py-1 bg-amber-50 text-amber-600 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    Pending
+                                  </div>
+                                ) : (
+                                  <div className="px-2.5 py-1 bg-slate-200 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                                    Signed Up
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-12 space-y-3">
+                          <Users className="h-10 w-10 text-slate-200 mx-auto" />
+                          <p className="text-sm text-slate-400 font-medium">No friends referred yet.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {referredUsers.length > 50 && (
+                      <div className="pt-4 border-t border-slate-50">
+                         <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                           <div 
+                             className="h-full bg-emerald-500 transition-all duration-1000" 
+                             style={{ width: `${Math.min((referredUsers.length / 100) * 100, 100)}%` }}
+                           />
+                         </div>
+                         <div className="mt-2 flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                           <span>Milestone progress</span>
+                           <span>{referredUsers.length}/100</span>
+                         </div>
+                      </div>
+                    )}
                   </div>
-                  <h3 className="text-xl font-bold text-slate-800 tracking-tight">No reward yet</h3>
-                  <p className="text-sm text-slate-400 font-medium max-w-[250px]">Start sending your link to friends to earn your first reward!</p>
-                  <button 
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/?ref=${user?.uid.substring(0, 8)}`);
-                      toast.success("Link copied! Share it now.");
-                    }}
-                    className="bg-emerald-50 text-emerald-600 px-8 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-emerald-100 transition-all mt-4"
-                  >
-                    Copy invite link
-                  </button>
+
+                  <div className="bg-emerald-50 p-6 rounded-3xl border border-emerald-100 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm">
+                        <Gift className="h-5 w-5" />
+                      </div>
+                      <h4 className="font-bold text-emerald-900 text-sm italic">Pro Tip from Ma'am</h4>
+                    </div>
+                    <p className="text-xs text-emerald-700 font-medium leading-relaxed">
+                      "Help your friends join classes that fit their goals! If you bring 50 members who join a course, you get <strong>₹500</strong> direkt cash. Keep sharing!"
+                    </p>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -938,7 +1039,7 @@ export default function Dashboard() {
                             return referralCount > 0 && (
                               <div className="text-[10px] text-primary font-bold uppercase tracking-wider flex items-center gap-1">
                                 <Users className="h-2.5 w-2.5" />
-                                Referred: {referralCount} {referralCount >= 100 ? "🔥 (Earned ₹500 Bonus)" : `(Earned ₹${referralCount * 50})`}
+                                Referred: {referralCount} {referralCount >= 50 ? "🔥 (Earned ₹500 Bonus)" : `(Progress: ${referralCount}/50)`}
                               </div>
                             );
                           })()}
