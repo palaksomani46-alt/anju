@@ -233,7 +233,7 @@ export default function Home() {
       {/* Why Choose Us */}
       <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 px-6 md:px-12">
         {[
-          { icon: <Globe className="h-8 w-8 text-emerald-600" />, title: "Hindi & English Classes", desc: "Learn comfortably in your own language with easy-to-understand videos." },
+          { icon: <Globe className="h-8 w-8 text-emerald-600" />, title: "Stricting Classes", desc: "Structured, highly-disciplined live lectures to ensure constant daily progress." },
           { icon: <Award className="h-8 w-8 text-emerald-600" />, title: "Course Certificates", desc: "Receive certificates that help you get jobs and grow your career." },
           { icon: <ShieldCheck className="h-8 w-8 text-emerald-600" />, title: "100% Safe Payments", desc: "Every payment is manually checked so your money is always safe." },
           { icon: <Sparkles className="h-8 w-8 text-emerald-600" />, title: "Job & Internship Help", desc: "We help our best students find work in local companies and startups." },

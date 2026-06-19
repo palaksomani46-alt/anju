@@ -24,7 +24,7 @@ import { formatPrice, compressImage } from '../lib/utils';
 export default function CourseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, profile, openAuth } = useAuth();
+  const { user, profile, openAuth, isAdmin } = useAuth();
   const [course, setCourse] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isEnrolling, setIsEnrolling] = useState(false);
@@ -38,6 +38,7 @@ export default function CourseDetail() {
   });
   const [uploading, setUploading] = useState(false);
   const [hasAlreadyEnrolled, setHasAlreadyEnrolled] = useState(false);
+  const isParticipant = (id && profile?.enrolledCourses?.includes(id)) || isAdmin;
 
   useEffect(() => {
     if (user) {
@@ -220,17 +221,37 @@ export default function CourseDetail() {
                     </div>
                   </div>
 
-                  {hasAlreadyEnrolled ? (
+                  {isParticipant ? (
+                    <div className="space-y-3">
+                      <button 
+                        onClick={() => navigate(`/live/${id}`)}
+                        className="w-full relative py-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-sm tracking-wide shadow-xl shadow-red-200 active:scale-95 transition-all flex items-center justify-center gap-2 overflow-hidden group"
+                      >
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                        </span>
+                        <span>🔴 JOIN LIVE CLASSROOM</span>
+                      </button>
+                      
+                      <button 
+                        onClick={() => navigate('/dashboard')}
+                        className="w-full py-4 rounded-2xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-all text-sm"
+                      >
+                        Go to Dashboard Status
+                      </button>
+                    </div>
+                  ) : hasAlreadyEnrolled ? (
                     <button 
                       onClick={() => navigate('/dashboard')}
-                      className="w-full py-4 rounded-2xl bg-slate-100 text-slate-600 font-bold transition-all"
+                      className="w-full py-4 rounded-2xl bg-slate-100 text-slate-600 font-bold transition-all text-sm"
                     >
-                      Check Status
+                      Check Status (Pending Verification)
                     </button>
                   ) : (
                     <button 
                       onClick={handleEnrollClick}
-                      className="w-full gradient-btn py-4 rounded-2xl text-white font-bold shadow-xl shadow-emerald-100 active:scale-95 transition-all"
+                      className="w-full gradient-btn py-4 rounded-2xl text-white font-bold shadow-xl shadow-emerald-100 active:scale-95 transition-all text-sm"
                     >
                       Enroll Now
                     </button>

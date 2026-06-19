@@ -44,12 +44,14 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import { formatPrice, formatDate, cn } from '../lib/utils';
 import { CertificateTemplate } from '../components/CertificateTemplate';
 import { generateAndSaveCertificate } from '../lib/certificateUtils';
 
 export default function Dashboard() {
   const { user, profile, isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(isAdmin ? 'enrollments' : 'my_courses');
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [referredUsers, setReferredUsers] = useState<any[]>([]);
@@ -1176,11 +1178,22 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        <div className="pt-2">
+                        <div className="pt-2 space-y-2">
+                          <button 
+                            onClick={() => navigate(`/live/${course.id}`)}
+                            className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold shadow-md transition-all text-xs"
+                          >
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                            </span>
+                            <span>Join Live Classroom</span>
+                          </button>
+
                           {profile?.completedCourses?.includes(course.id) ? (
                             <button 
                               onClick={() => downloadExistingCertificate(course.id)}
-                              className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-50 text-emerald-600 rounded-2xl font-bold hover:bg-emerald-100 transition-all border border-emerald-100"
+                              className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-50 text-emerald-600 rounded-2xl font-bold hover:bg-emerald-100 transition-all border border-emerald-100 text-xs"
                             >
                               <Download className="h-4 w-4" />
                               <span>Download Certificate</span>
@@ -1188,7 +1201,7 @@ export default function Dashboard() {
                           ) : (
                             <div>
                               {completionRequests.find(r => r.courseId === course.id && r.status === 'pending') ? (
-                                <div className="w-full py-3 bg-slate-50 text-slate-400 rounded-2xl font-bold border border-slate-100 flex items-center justify-center gap-2 cursor-default">
+                                <div className="w-full py-3 bg-slate-50 text-slate-400 rounded-2xl font-bold border border-slate-100 flex items-center justify-center gap-2 cursor-default text-xs">
                                   <Clock className="h-4 w-4" />
                                   <span>Pending Approval</span>
                                 </div>
@@ -1196,7 +1209,7 @@ export default function Dashboard() {
                                 <button 
                                   onClick={() => handleRequestCertificate(course)}
                                   disabled={isGenerating}
-                                  className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50"
+                                  className="w-full flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50 text-xs"
                                 >
                                   <Award className="h-4 w-4" />
                                   <span>{isGenerating ? "Processing..." : "Request Certificate"}</span>

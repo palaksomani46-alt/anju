@@ -1,6 +1,6 @@
 {
   "name": "Stricth Toppers",
   "description": "Elite Career Growth & Mentorship Platform by Anju Somani. Upgrade your skills with professional masterclasses and expert guidance.",
-  "requestFramePermissions": [],
-  "majorCapabilities": []
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

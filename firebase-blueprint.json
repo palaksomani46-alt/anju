@@ -87,6 +87,69 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "userName", "courseId", "courseTitle", "status", "createdAt"]
+    },
+    "LiveState": {
+      "title": "Live State",
+      "description": "The real-time state of a course live class",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["idle", "live", "ended"] },
+        "liveTitle": { "type": "string" },
+        "pinnedChatId": { "type": "string" },
+        "isChatMuted": { "type": "boolean" },
+        "isScreenSharing": { "type": "boolean" },
+        "notesUrl": { "type": "string" },
+        "currentViewerCount": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["status", "updatedAt"]
+    },
+    "LiveChat": {
+      "title": "Live Chat",
+      "description": "Chat messages inside a live class",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "isPinned": { "type": "boolean" },
+        "isTeacher": { "type": "boolean" },
+        "replyTo": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["text", "userId", "userName", "createdAt"]
+    },
+    "Doubt": {
+      "title": "Doubt",
+      "description": "Student questions with upvotes and state keys",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "question": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "upvotes": { "type": "array", "items": { "type": "string" } },
+        "isSolved": { "type": "boolean" },
+        "reply": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["question", "userId", "userName", "upvotes", "isSolved", "createdAt"]
+    },
+    "Recording": {
+      "title": "Recording",
+      "description": "Archived video recordings of ended live sessions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "videoUrl": { "type": "string", "format": "uri" },
+        "duration": { "type": "string" },
+        "views": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "videoUrl", "createdAt"]
     }
   },
   "firestore": {
@@ -97,6 +160,22 @@
     "/courses/{courseId}": {
       "schema": "Course",
       "description": "Store for course details"
+    },
+    "/courses/{courseId}/live_state/{stateId}": {
+      "schema": "LiveState",
+      "description": "Real-time stream state configurations"
+    },
+    "/courses/{courseId}/live_chats/{chatId}": {
+      "schema": "LiveChat",
+      "description": "Real-time class discussion messages"
+    },
+    "/courses/{courseId}/doubts/{doubtId}": {
+      "schema": "Doubt",
+      "description": "Student doubt tracker and resolution system"
+    },
+    "/courses/{courseId}/recordings/{recordingId}": {
+      "schema": "Recording",
+      "description": "Saved past live classes list"
     },
     "/enrollments/{enrollmentId}": {
       "schema": "Enrollment",
