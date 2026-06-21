@@ -14,7 +14,8 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
       return isSignedIn() && (
-        request.auth.token.email.lower() == 'palaksomani46@gmail.com'
+        request.auth.token.email.lowerCase() == 'palaksomani4646@gmail.com' ||
+        request.auth.token.email.lowerCase() == 'palaksomani46@gmail.com'
       ); 
     }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
@@ -30,7 +31,7 @@ service cloud.firestore {
         && data.email == request.auth.token.email
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
         && data.role in ['student', 'admin']
-        && (data.role == 'admin' ? (data.email.lower() == 'palaksomani46@gmail.com') : true)
+        && (data.role == 'admin' ? (data.email.lowerCase() == 'palaksomani46@gmail.com' || data.email.lowerCase() == 'palaksomani4646@gmail.com') : true)
         && data.createdAt == request.time;
     }
 
@@ -68,9 +69,10 @@ service cloud.firestore {
     }
 
     function isEnrolled(courseId) {
-      return isSignedIn() && (
-        courseId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.enrolledCourses
-      );
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        'enrolledCourses' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data &&
+        courseId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.enrolledCourses;
     }
 
     function isValidChat(data) {
@@ -116,21 +118,21 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /live_state/{stateId} {
-        allow read: if isSignedIn() && (isEnrolled(courseId) || isAdmin());
+        allow read: if isSignedIn() && (isAdmin() || isEnrolled(courseId));
         allow write: if isAdmin();
       }
 
       match /live_chats/{chatId} {
-        allow read: if isSignedIn() && (isEnrolled(courseId) || isAdmin());
-        allow create: if isSignedIn() && (isEnrolled(courseId) || isAdmin()) && isValidChat(incoming());
+        allow read: if isSignedIn() && (isAdmin() || isEnrolled(courseId));
+        allow create: if isSignedIn() && (isAdmin() || isEnrolled(courseId)) && isValidChat(incoming());
         allow update: if isAdmin();
         allow delete: if isAdmin();
       }
 
       match /doubts/{doubtId} {
-        allow read: if isSignedIn() && (isEnrolled(courseId) || isAdmin());
-        allow create: if isSignedIn() && (isEnrolled(courseId) || isAdmin()) && isValidDoubt(incoming());
-        allow update: if isSignedIn() && (isEnrolled(courseId) || isAdmin()) && (
+        allow read: if isSignedIn() && (isAdmin() || isEnrolled(courseId));
+        allow create: if isSignedIn() && (isAdmin() || isEnrolled(courseId)) && isValidDoubt(incoming());
+        allow update: if isSignedIn() && (isAdmin() || isEnrolled(courseId)) && (
           incoming().diff(existing()).affectedKeys().hasOnly(['upvotes']) ||
           (isAdmin() && incoming().diff(existing()).affectedKeys().hasAny(['isSolved', 'reply']))
         );
@@ -138,7 +140,7 @@ service cloud.firestore {
       }
 
       match /recordings/{recordingId} {
-        allow read: if isSignedIn() && (isEnrolled(courseId) || isAdmin());
+        allow read: if isSignedIn() && (isAdmin() || isEnrolled(courseId));
         allow write: if isAdmin();
       }
     }

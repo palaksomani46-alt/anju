@@ -329,14 +329,15 @@ export default function LiveClassroom() {
     if (!courseId) return;
     try {
       const liveStateRef = doc(db, 'courses', courseId, 'live_state', 'state');
-      await updateDoc(liveStateRef, {
+      await setDoc(liveStateRef, {
         status: 'live',
         liveTitle: liveState.liveTitle || `${course?.title} Live Discussion`,
         updatedAt: serverTimestamp(),
         currentViewerCount: Math.floor(Math.random() * 20) + 15
-      });
+      }, { merge: true });
       toast.success("🔴 Class is Live now! Enrolled students are notified.");
     } catch (err) {
+      console.error("Start live error:", err);
       toast.error("Failed to start class. Permissions protected.");
     }
   };
@@ -345,11 +346,11 @@ export default function LiveClassroom() {
     if (!courseId) return;
     try {
       const liveStateRef = doc(db, 'courses', courseId, 'live_state', 'state');
-      await updateDoc(liveStateRef, {
+      await setDoc(liveStateRef, {
         status: 'ended',
         updatedAt: serverTimestamp(),
         currentViewerCount: 0
-      });
+      }, { merge: true });
 
       // Automatically compile class recording with dynamic simulation elements
       const recId = 'rec_' + Date.now().toString().substring(6);
@@ -380,13 +381,13 @@ export default function LiveClassroom() {
     }
     try {
       const liveStateRef = doc(db, 'courses', courseId, 'live_state', 'state');
-      await updateDoc(liveStateRef, {
+      await setDoc(liveStateRef, {
         status: 'scheduled',
         scheduledTitle: scheduledTitleInput.trim(),
         scheduledTime: scheduledTimeInput,
         liveTitle: scheduledTitleInput.trim(),
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
       toast.success(`📅 Session Scheduled: "${scheduledTitleInput}"`);
       setScheduledTitleInput('');
       setScheduledTimeInput('');
@@ -400,11 +401,12 @@ export default function LiveClassroom() {
     if (!courseId) return;
     try {
       const liveStateRef = doc(db, 'courses', courseId, 'live_state', 'state');
-      await updateDoc(liveStateRef, {
+      await setDoc(liveStateRef, {
         isChatMuted: !liveState.isChatMuted
-      });
+      }, { merge: true });
       toast.success(liveState.isChatMuted ? "Chat has been enabled." : "Chat has been muted.");
     } catch (err) {
+      console.error("Mute chat error:", err);
       toast.error("Failed to execute.");
     }
   };
@@ -413,11 +415,12 @@ export default function LiveClassroom() {
     if (!courseId) return;
     try {
       const liveStateRef = doc(db, 'courses', courseId, 'live_state', 'state');
-      await updateDoc(liveStateRef, {
+      await setDoc(liveStateRef, {
         pinnedChatId: liveState.pinnedChatId === msgId ? '' : msgId
-      });
+      }, { merge: true });
       toast.success(liveState.pinnedChatId === msgId ? "Message unpinned." : "Message pinned to top!");
     } catch (err) {
+      console.error("Pin message error:", err);
       toast.error("Pin action unauthorized.");
     }
   };
@@ -426,12 +429,13 @@ export default function LiveClassroom() {
     if (!courseId || !newNotesUrl) return;
     try {
       const liveStateRef = doc(db, 'courses', courseId, 'live_state', 'state');
-      await updateDoc(liveStateRef, {
+      await setDoc(liveStateRef, {
         notesUrl: newNotesUrl
-      });
+      }, { merge: true });
       toast.success("Study Notes integrated successfully!");
       setNewNotesUrl('');
     } catch (err) {
+      console.error("Upload notes error:", err);
       toast.error("Failed to share notes.");
     }
   };
