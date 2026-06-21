@@ -40,7 +40,8 @@ import {
   Download,
   Gift,
   Share2,
-  Copy
+  Copy,
+  Video
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -932,21 +933,31 @@ export default function Dashboard() {
                       <h3 className="font-bold text-slate-800 line-clamp-1">{course.title}</h3>
                       <div className="text-lg font-black text-primary">{formatPrice(course.price)}</div>
                     </div>
-                    <div className="flex items-center gap-2 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-50 w-full sm:w-auto justify-center sm:justify-end">
+                    <div className="flex flex-col sm:flex-row items-center gap-2 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-50 w-full sm:w-auto justify-center sm:justify-end">
                       <button 
-                        onClick={() => handleEditClick(course)}
-                        className="p-3 bg-slate-50 text-slate-400 hover:text-primary rounded-xl transition-colors"
-                        title="Edit Course"
+                        onClick={() => navigate(`/live/${course.id}`)}
+                        className="w-full sm:w-auto px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] tracking-wider uppercase rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-all whitespace-nowrap"
+                        title="Go Live & Manage Classroom"
                       >
-                        <Edit2 className="h-4 w-4" />
+                        <Video className="h-3.5 w-3.5" />
+                        <span>Go Live & Manage</span>
                       </button>
-                      <button 
-                        onClick={() => handleDeleteCourse(course.id, course.title)}
-                        className="p-3 bg-slate-50 text-slate-400 hover:text-red-500 rounded-xl transition-colors"
-                        title="Delete Course"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
+                        <button 
+                          onClick={() => handleEditClick(course)}
+                          className="p-2 sm:p-3 bg-slate-50 text-slate-400 hover:text-primary rounded-xl transition-colors"
+                          title="Edit Course"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteCourse(course.id, course.title)}
+                          className="p-2 sm:p-3 bg-slate-50 text-slate-400 hover:text-red-500 rounded-xl transition-colors"
+                          title="Delete Course"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
