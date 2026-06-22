@@ -119,8 +119,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /live_state/{stateId} {
-        allow read: if isSignedIn() && (isAdmin() || isEnrolled(courseId));
-        allow write: if isAdmin();
+        allow read: if true;
+        allow update: if isAdmin() || (request.auth == null && incoming().diff(existing()).affectedKeys().hasOnly(['notified_4h']));
+        allow create, delete: if isAdmin();
       }
 
       match /live_chats/{chatId} {
@@ -153,8 +154,8 @@ service cloud.firestore {
     }
 
     match /enrollments/{enrollmentId} {
-      allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if (isSignedIn() && (isOwner(existing().userId) || isAdmin())) || (request.auth == null && existing().status == 'approved');
+      allow list: if (isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin())) || (request.auth == null && resource.data.status == 'approved');
       allow create: if isSignedIn() && isValidEnrollment(incoming()) && incoming().status == 'pending';
       allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
       allow delete: if isAdmin();
@@ -172,6 +173,12 @@ service cloud.firestore {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if true; // Allows server-side or public dispatch
       allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /email_logs/{emailLogId} {
+      allow read: if isSignedIn() && isAdmin();
+      allow create: if true; // Allows server-side email log tracing
+      allow update, delete: if isAdmin();
     }
   }
 }

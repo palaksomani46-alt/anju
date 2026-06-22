@@ -21,7 +21,14 @@ async function checkAndTrigger4HourNotifications() {
   try {
     console.log("[SERVER SERVICE] Scanning scheduled classes for 4-hour notification trigger...");
     const coursesRef = collection(db, 'courses');
-    const coursesSnap = await getDocs(coursesRef);
+    let coursesSnap;
+    try {
+      coursesSnap = await getDocs(coursesRef);
+      console.log(`[SERVER SERVICE] Successfully fetched ${coursesSnap.size} courses.`);
+    } catch (err: any) {
+      console.error("[SERVER SERVICE] Error fetching courses collection:", err);
+      throw new Error("fetching courses: " + err.message);
+    }
     
     for (const courseDoc of coursesSnap.docs) {
       const courseId = courseDoc.id;
@@ -30,7 +37,13 @@ async function checkAndTrigger4HourNotifications() {
 
       // Fetch the live state document
       const liveStateRef = doc(db, 'courses', courseId, 'live_state', 'state');
-      const liveStateSnap = await getDoc(liveStateRef);
+      let liveStateSnap;
+      try {
+        liveStateSnap = await getDoc(liveStateRef);
+      } catch (err: any) {
+        console.error(`[SERVER SERVICE] Error fetching live_state for course ${courseId}:`, err);
+        throw new Error(`fetching live_state for course ${courseId}: ` + err.message);
+      }
 
       if (!liveStateSnap.exists()) continue;
 
@@ -55,7 +68,13 @@ async function checkAndTrigger4HourNotifications() {
           console.log(`[SERVER SERVICE] ALERT: Course "${courseTitle}" starts in ${hoursLeftFormatted} hours. Triggering alerts!`);
           
           // Mark as notified in DB immediately to prevent duplicate runs
-          await setDoc(liveStateRef, { notified_4h: true }, { merge: true });
+          try {
+            await setDoc(liveStateRef, { notified_4h: true }, { merge: true });
+            console.log(`[SERVER SERVICE] Marked Course "${courseTitle}" as notified_4h.`);
+          } catch (err: any) {
+            console.error(`[SERVER SERVICE] Error updating live_state notified_4h for course ${courseId}:`, err);
+            throw new Error(`updating live_state notified_4h for course ${courseId}: ` + err.message);
+          }
 
           // Fetch all approved students enrolled in this course
           const enrollRef = collection(db, 'enrollments');
@@ -64,9 +83,14 @@ async function checkAndTrigger4HourNotifications() {
             where('courseId', '==', courseId),
             where('status', '==', 'approved')
           );
-          const enrollSnap = await getDocs(enrollQuery);
-
-          console.log(`[SERVER SERVICE] Course "${courseTitle}" has ${enrollSnap.size} approved subscribers. Dispatching alerts.`);
+          let enrollSnap;
+          try {
+            enrollSnap = await getDocs(enrollQuery);
+            console.log(`[SERVER SERVICE] Course "${courseTitle}" has ${enrollSnap.size} approved subscribers.`);
+          } catch (err: any) {
+            console.error(`[SERVER SERVICE] Error fetching enrollments for course ${courseId}:`, err);
+            throw new Error(`fetching enrollments for course ${courseId}: ` + err.message);
+          }
 
           for (const enrollDoc of enrollSnap.docs) {
             const enroll = enrollDoc.data();
@@ -77,17 +101,22 @@ async function checkAndTrigger4HourNotifications() {
             // 1. Write the Dashboard Notification document for real-time client consumption
             const notificationId = `notif_${Date.now()}_${userId.substring(0, 5)}`;
             const notificationRef = doc(db, 'notifications', notificationId);
-            await setDoc(notificationRef, {
-              id: notificationId,
-              userId: userId,
-              courseId: courseId,
-              courseTitle: courseTitle,
-              title: `Live Masterclass Starting in 4 Hours!`,
-              message: `Hi ${userName}, get ready! The live session "${liveState.scheduledTitle || 'Special Mentorship Masterclass'}" for your enrolled course "${courseTitle}" starts in 4 hours (at ${scheduledTimeStr.replace('T', ' ')}). See you inside the classroom!`,
-              type: 'live_reminder',
-              isRead: false,
-              createdAt: new Date().toISOString()
-            });
+            try {
+              await setDoc(notificationRef, {
+                id: notificationId,
+                userId: userId,
+                courseId: courseId,
+                courseTitle: courseTitle,
+                title: `Live Masterclass Starting in 4 Hours!`,
+                message: `Hi ${userName}, get ready! The live session "${liveState.scheduledTitle || 'Special Mentorship Masterclass'}" for your enrolled course "${courseTitle}" starts in 4 hours (at ${scheduledTimeStr.replace('T', ' ')}). See you inside the classroom!`,
+                type: 'live_reminder',
+                isRead: false,
+                createdAt: new Date().toISOString()
+              });
+            } catch (err: any) {
+              console.error(`[SERVER SERVICE] Error creating notifications for user ${userId}:`, err);
+              throw new Error(`creating notifications for user ${userId}: ` + err.message);
+            }
 
             // 2. Perform a beautiful formatted console dispatch simulation for Mail Service
             console.log(`
@@ -120,22 +149,28 @@ async function checkAndTrigger4HourNotifications() {
             // 3. Write an email trace audit log in Firestore
             const emailLogId = `email_${Date.now()}_${userId.substring(0, 5)}`;
             const emailLogRef = doc(db, 'email_logs', emailLogId);
-            await setDoc(emailLogRef, {
-              id: emailLogId,
-              recipientEmail: userEmail,
-              recipientName: userName,
-              userId: userId,
-              courseId: courseId,
-              subject: `Live Classroom Alert: 4 Hours until "${liveState.scheduledTitle || 'Live Masterclass'}"`,
-              body: `Dear ${userName}, your class is going live in 4 hours! Topic: ${liveState.scheduledTitle}`,
-              sentAt: new Date().toISOString()
-            });
+            try {
+              await setDoc(emailLogRef, {
+                id: emailLogId,
+                recipientEmail: userEmail,
+                recipientName: userName,
+                userId: userId,
+                courseId: courseId,
+                subject: `Live Classroom Alert: 4 Hours until "${liveState.scheduledTitle || 'Live Masterclass'}"`,
+                body: `Dear ${userName}, your class is going live in 4 hours! Topic: ${liveState.scheduledTitle}`,
+                sentAt: new Date().toISOString()
+              });
+            } catch (err: any) {
+              console.error(`[SERVER SERVICE] Error logging email for user ${userId}:`, err);
+              throw new Error(`logging email for user ${userId}: ` + err.message);
+            }
           }
         }
       }
     }
   } catch (error) {
     console.error("[SERVER SERVICE] Error checking 4-hour live reminder configurations:", error);
+    throw error;
   }
 }
 
@@ -156,13 +191,20 @@ async function startServer() {
       await checkAndTrigger4HourNotifications();
       res.json({ success: true, message: "Server-side check executed successfully. See standard logs." });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: err.message });
+      res.status(500).json({ success: false, error: err.stack || err.message || err });
     }
   });
 
   // Start backround scheduler loop processing every 30 seconds for real-time reaction
   console.log("[SERVER SERVICE] Booking automated background check interval loop (every 30 seconds)...");
-  setInterval(checkAndTrigger4HourNotifications, 30000);
+  setInterval(async () => {
+    try {
+      await checkAndTrigger4HourNotifications();
+    } catch (err) {
+      // Background loop logs and swallows to stay safe
+      console.error("[SERVER SERVICE] Background scheduler execution failed:", err);
+    }
+  }, 30000);
 
   // Mount Vite development middleware or serve compiled client build
   if (process.env.NODE_ENV !== "production") {

@@ -57,6 +57,7 @@ import {
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import AgoraRTC from 'agora-rtc-sdk-ng';
 
 // Tab definitions inside chat section
 type SidebarTab = 'chat' | 'doubts' | 'recordings' | 'notes';
@@ -165,9 +166,18 @@ export default function LiveClassroom() {
   const [lastSentTime, setLastSentTime] = useState<number>(0);
 
   // Audio/Video streams for actual developer permissions simulation
-  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Agora RTC Real-Time live streaming refs & states
+  const agoraClientRef = useRef<any>(null);
+  const localAudioTrackRef = useRef<any>(null);
+  const localVideoTrackRef = useRef<any>(null);
+  const [remoteVideoTrack, setRemoteVideoTrack] = useState<any>(null);
+  const [remoteAudioTrack, setRemoteAudioTrack] = useState<any>(null);
+  const [isAgoraConnected, setIsAgoraConnected] = useState(false);
+  const [agoraStreamError, setAgoraStreamError] = useState<string>('');
 
   // Quality settings descriptions
   const qualityTextMap = {
@@ -346,43 +356,178 @@ export default function LiveClassroom() {
     };
   }, [courseId, isEnrolledUser, user, profile, isAdmin]);
 
-  // --- Real camera activation hook details ---
+  // --- Agora Live Interactive Streaming SDK Controller ---
   useEffect(() => {
-    // Only request and run camera if class is live, user is structural Admin/Teacher and isCameraOn is true
-    if (liveState.status === 'live' && isCameraOn && isAdmin) {
-      navigator.mediaDevices.getUserMedia({ video: true, audio: isMicOn })
-        .then((stream) => {
-          streamRef.current = stream;
-          setHasActiveStream(true);
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
+    if (liveState.status !== 'live' || !isEnrolledUser) {
+      // Clear any remaining Agora state
+      setRemoteVideoTrack(null);
+      setRemoteAudioTrack(null);
+      setIsAgoraConnected(false);
+      return;
+    }
+
+    let isJoined = false;
+    const client = AgoraRTC.createClient({ mode: 'live', codec: 'vp8' });
+    agoraClientRef.current = client;
+
+    const AGORA_APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "4a460ba4e4144be9bab487bb090cbdd1";
+
+    async function initStreaming() {
+      try {
+        setAgoraStreamError('');
+        
+        // Join Agora Channel
+        const uid = user ? user.uid : "viewer_" + Math.random().toString(36).substring(2, 7);
+        await client.join(AGORA_APP_ID, courseId || "sandbox", null, uid);
+        isJoined = true;
+        setIsAgoraConnected(true);
+
+        if (isAdmin) {
+          // ADMIN (TEACHER) ROLE: Publisher Broadcasting
+          await client.setClientRole('host');
+
+          // Create local voice and webcam media tracks
+          const tracks: any[] = [];
+          if (isMicOn) {
+            try {
+              const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+              localAudioTrackRef.current = audioTrack;
+              tracks.push(audioTrack);
+            } catch (micErr) {
+              console.warn("Failed to create microphone track:", micErr);
+            }
           }
-        })
-        .catch((err) => {
-          console.warn("Media devices access denied or not available. Using visual loop visualization instead.", err);
-          setHasActiveStream(false);
-        });
-    } else {
-      setHasActiveStream(false);
+
+          if (isCameraOn) {
+            try {
+              const videoTrack = await AgoraRTC.createCameraVideoTrack();
+              localVideoTrackRef.current = videoTrack;
+              tracks.push(videoTrack);
+              // Play locally for teacher preview immediately
+              setTimeout(() => {
+                if (localVideoRef.current) {
+                  videoTrack.play(localVideoRef.current);
+                }
+              }, 500);
+            } catch (camErr) {
+              console.warn("Failed to create camera track:", camErr);
+            }
+          }
+
+          if (tracks.length > 0) {
+            await client.publish(tracks);
+            setHasActiveStream(true);
+          }
+        } else {
+          // STUDENT ROLE: Interactive Audience Subscriber
+          await client.setClientRole('audience');
+
+          // Set up listener for teacher's active stream publishing events
+          client.on('user-published', async (remoteUser, mediaType) => {
+            try {
+              await client.subscribe(remoteUser, mediaType);
+              if (mediaType === 'video') {
+                setRemoteVideoTrack(remoteUser.videoTrack);
+                setHasActiveStream(true);
+                setTimeout(() => {
+                  if (localVideoRef.current && remoteUser.videoTrack) {
+                    remoteUser.videoTrack.play(localVideoRef.current);
+                  }
+                }, 500);
+              }
+              if (mediaType === 'audio') {
+                setRemoteAudioTrack(remoteUser.audioTrack);
+                remoteUser.audioTrack?.play();
+              }
+            } catch (subErr) {
+              console.error("Subscription to remote classroom feed failed:", subErr);
+            }
+          });
+
+          client.on('user-unpublished', (remoteUser, mediaType) => {
+            if (mediaType === 'video') {
+              setRemoteVideoTrack(null);
+            }
+            if (mediaType === 'audio') {
+              setRemoteAudioTrack(null);
+            }
+          });
+        }
+      } catch (err: any) {
+        console.error("Agora Streaming core engine initialization failed:", err);
+        setAgoraStreamError(err.message || "Agora RTC initialization failed");
+        
+        // Fallback to simpler Local MediaStream (GetUserMedia) so that developers can preview camera feed sandbox even without a premium cloud setup
+        if (isAdmin && isCameraOn) {
+          navigator.mediaDevices.getUserMedia({ video: true, audio: isMicOn })
+            .then((stream) => {
+              streamRef.current = stream;
+              setHasActiveStream(true);
+              // Handle custom playing via normal video element fallback
+              const videoElement = document.createElement('video');
+              videoElement.srcObject = stream;
+              videoElement.className = "w-full h-full object-cover rounded-2xl";
+              videoElement.autoplay = true;
+              videoElement.playsInline = true;
+              videoElement.muted = true;
+              if (localVideoRef.current) {
+                localVideoRef.current.innerHTML = '';
+                localVideoRef.current.appendChild(videoElement);
+              }
+            })
+            .catch((fallbackErr) => {
+              console.warn("Local media stream fallback failed:", fallbackErr);
+              setHasActiveStream(false);
+            });
+        }
+      }
+    }
+
+    initStreaming();
+
+    return () => {
+      // Clean up Agora track objects
+      if (localAudioTrackRef.current) {
+        try {
+          localAudioTrackRef.current.stop();
+          localAudioTrackRef.current.close();
+        } catch (e) {}
+        localAudioTrackRef.current = null;
+      }
+      if (localVideoTrackRef.current) {
+        try {
+          localVideoTrackRef.current.stop();
+          localVideoTrackRef.current.close();
+        } catch (e) {}
+        localVideoTrackRef.current = null;
+      }
+      if (isJoined) {
+        client.leave().catch(() => {});
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
-    }
-
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+      if (localVideoRef.current) {
+        localVideoRef.current.innerHTML = '';
       }
+      setIsAgoraConnected(false);
+      setHasActiveStream(false);
     };
-  }, [isCameraOn, isMicOn, liveState.status, isAdmin]);
+  }, [liveState.status, isEnrolledUser, isAdmin, isCameraOn, isMicOn, courseId, user]);
 
-  // Apply the webcam stream to the video element as soon as they are both active and bound to bypass React mounting race conditions
+  // Synchronise native Agora tracks with the DOM rendering container
   useEffect(() => {
-    if (localVideoRef.current && streamRef.current) {
-      localVideoRef.current.srcObject = streamRef.current;
+    if (!localVideoRef.current || liveState.status !== 'live') return;
+
+    if (isAdmin && localVideoTrackRef.current) {
+      localVideoRef.current.innerHTML = '';
+      localVideoTrackRef.current.play(localVideoRef.current);
+    } else if (!isAdmin && remoteVideoTrack) {
+      localVideoRef.current.innerHTML = '';
+      remoteVideoTrack.play(localVideoRef.current);
     }
-  }, [liveState.status, isCameraOn, hasActiveStream, localVideoRef.current]);
+  }, [liveState.status, isAdmin, remoteVideoTrack, localVideoRef.current]);
 
   // Audio waveform frequency dynamic animation simulation loop
   useEffect(() => {
@@ -784,16 +929,13 @@ export default function LiveClassroom() {
           <div className="bg-slate-950 border border-white/5 rounded-3xl overflow-hidden aspect-video relative flex flex-col justify-center items-center group shadow-2xl">
             {liveState.status === 'live' ? (
               <div className="w-full h-full relative">
-                {/* Real Live Video stream */}
-                <video 
+                {/* Dynamically loaded browser video stream / Agora RTC mount */}
+                <div 
                   ref={localVideoRef} 
                   className={cn(
-                    "w-full h-full object-cover bg-black",
+                    "w-full h-full bg-black relative rounded-2xl overflow-hidden [&>div]:!bg-transparent [&_video]:object-cover",
                     isAdmin ? "transform scale-x-[-1]" : ""
                   )}
-                  autoPlay 
-                  playsInline 
-                  muted={isAdmin} // Prevent echo/feedback loop for teacher
                 />
 
                 {/* Overwhelmingly elegant stream interface overlay info */}
