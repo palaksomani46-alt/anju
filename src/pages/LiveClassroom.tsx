@@ -373,6 +373,30 @@ export default function LiveClassroom() {
     const AGORA_APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "4a460ba4e4144be9bab487bb090cbdd1";
 
     async function initStreaming() {
+      const startLocalFallbackStream = () => {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: isMicOn })
+          .then((stream) => {
+            streamRef.current = stream;
+            setHasActiveStream(true);
+            // Handle custom playing via normal video element fallback
+            const videoElement = document.createElement('video');
+            videoElement.srcObject = stream;
+            videoElement.className = "w-full h-full object-cover rounded-2xl";
+            videoElement.autoplay = true;
+            videoElement.playsInline = true;
+            videoElement.muted = true;
+            if (localVideoRef.current) {
+              localVideoRef.current.innerHTML = '';
+              localVideoRef.current.appendChild(videoElement);
+            }
+          })
+          .catch((fallbackErr) => {
+            console.warn("Local media stream fallback failed:", fallbackErr);
+            setHasActiveStream(false);
+            toast.error("Could not access camera. Please check camera permission settings.");
+          });
+      };
+
       try {
         setAgoraStreamError('');
         
@@ -410,13 +434,17 @@ export default function LiveClassroom() {
                 }
               }, 500);
             } catch (camErr) {
-              console.warn("Failed to create camera track:", camErr);
+              console.warn("Failed to create camera track via Agora RTC, falling back to native mediaDevices:", camErr);
+              startLocalFallbackStream();
             }
           }
 
           if (tracks.length > 0) {
             await client.publish(tracks);
             setHasActiveStream(true);
+          } else if (isCameraOn) {
+            // If no tracks were registered but camera is supposed to be on, trigger fallback
+            startLocalFallbackStream();
           }
         } else {
           // STUDENT ROLE: Interactive Audience Subscriber
@@ -459,26 +487,7 @@ export default function LiveClassroom() {
         
         // Fallback to simpler Local MediaStream (GetUserMedia) so that developers can preview camera feed sandbox even without a premium cloud setup
         if (isAdmin && isCameraOn) {
-          navigator.mediaDevices.getUserMedia({ video: true, audio: isMicOn })
-            .then((stream) => {
-              streamRef.current = stream;
-              setHasActiveStream(true);
-              // Handle custom playing via normal video element fallback
-              const videoElement = document.createElement('video');
-              videoElement.srcObject = stream;
-              videoElement.className = "w-full h-full object-cover rounded-2xl";
-              videoElement.autoplay = true;
-              videoElement.playsInline = true;
-              videoElement.muted = true;
-              if (localVideoRef.current) {
-                localVideoRef.current.innerHTML = '';
-                localVideoRef.current.appendChild(videoElement);
-              }
-            })
-            .catch((fallbackErr) => {
-              console.warn("Local media stream fallback failed:", fallbackErr);
-              setHasActiveStream(false);
-            });
+          startLocalFallbackStream();
         }
       }
     }
