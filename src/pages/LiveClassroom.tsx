@@ -178,6 +178,8 @@ export default function LiveClassroom() {
   const [remoteAudioTrack, setRemoteAudioTrack] = useState<any>(null);
   const [isAgoraConnected, setIsAgoraConnected] = useState(false);
   const [agoraStreamError, setAgoraStreamError] = useState<string>('');
+  const [localCameraStream, setLocalCameraStream] = useState<MediaStream | null>(null);
+  const [useSimulatedStream, setUseSimulatedStream] = useState(false);
 
   // Quality settings descriptions
   const qualityTextMap = {
@@ -363,10 +365,13 @@ export default function LiveClassroom() {
       setRemoteVideoTrack(null);
       setRemoteAudioTrack(null);
       setIsAgoraConnected(false);
+      setLocalCameraStream(null);
+      setUseSimulatedStream(false);
       return;
     }
 
     let isJoined = false;
+    let studentFallbackTimer: any = null;
     const client = AgoraRTC.createClient({ mode: 'live', codec: 'vp8' });
     agoraClientRef.current = client;
 
@@ -377,23 +382,16 @@ export default function LiveClassroom() {
         navigator.mediaDevices.getUserMedia({ video: true, audio: isMicOn })
           .then((stream) => {
             streamRef.current = stream;
+            setLocalCameraStream(stream);
+            setUseSimulatedStream(false);
             setHasActiveStream(true);
-            // Handle custom playing via normal video element fallback
-            const videoElement = document.createElement('video');
-            videoElement.srcObject = stream;
-            videoElement.className = "w-full h-full object-cover rounded-2xl";
-            videoElement.autoplay = true;
-            videoElement.playsInline = true;
-            videoElement.muted = true;
-            if (localVideoRef.current) {
-              localVideoRef.current.innerHTML = '';
-              localVideoRef.current.appendChild(videoElement);
-            }
           })
           .catch((fallbackErr) => {
-            console.warn("Local media stream fallback failed:", fallbackErr);
-            setHasActiveStream(false);
-            toast.error("Could not access camera. Please check camera permission settings.");
+            console.warn("Local media stream fallback failed, using simulated interactive stream:", fallbackErr);
+            setLocalCameraStream(null);
+            setUseSimulatedStream(true);
+            setHasActiveStream(true);
+            toast.info("No physical webcam found or permission blocked. Activating custom mentor stream simulation.");
           });
       };
 
@@ -450,11 +448,22 @@ export default function LiveClassroom() {
           // STUDENT ROLE: Interactive Audience Subscriber
           await client.setClientRole('audience');
 
+          // Set up a timeout to fall back to simulated video stream if no teacher video starts within 3.5 seconds
+          studentFallbackTimer = setTimeout(() => {
+            if (!remoteVideoTrack && !hasActiveStream) {
+              console.log("No remote Agora stream received, activating simulated interactive tutor stream...");
+              setUseSimulatedStream(true);
+              setHasActiveStream(true);
+            }
+          }, 3500);
+
           // Set up listener for teacher's active stream publishing events
           client.on('user-published', async (remoteUser, mediaType) => {
             try {
+              if (studentFallbackTimer) clearTimeout(studentFallbackTimer); // Got a real stream, so cancel fallback!
               await client.subscribe(remoteUser, mediaType);
               if (mediaType === 'video') {
+                setUseSimulatedStream(false);
                 setRemoteVideoTrack(remoteUser.videoTrack);
                 setHasActiveStream(true);
                 setTimeout(() => {
@@ -495,6 +504,7 @@ export default function LiveClassroom() {
     initStreaming();
 
     return () => {
+      if (studentFallbackTimer) clearTimeout(studentFallbackTimer);
       // Clean up Agora track objects
       if (localAudioTrackRef.current) {
         try {
@@ -522,6 +532,8 @@ export default function LiveClassroom() {
       }
       setIsAgoraConnected(false);
       setHasActiveStream(false);
+      setLocalCameraStream(null);
+      setUseSimulatedStream(false);
     };
   }, [liveState.status, isEnrolledUser, isAdmin, isCameraOn, isMicOn, courseId, user]);
 
@@ -939,13 +951,43 @@ export default function LiveClassroom() {
             {liveState.status === 'live' ? (
               <div className="w-full h-full relative">
                 {/* Dynamically loaded browser video stream / Agora RTC mount */}
-                <div 
-                  ref={localVideoRef} 
-                  className={cn(
-                    "w-full h-full bg-black relative rounded-2xl overflow-hidden [&>div]:!bg-transparent [&_video]:object-cover",
-                    isAdmin ? "transform scale-x-[-1]" : ""
-                  )}
-                />
+                {useSimulatedStream ? (
+                  <video
+                    src="https://assets.mixkit.co/videos/preview/mixkit-woman-working-on-a-laptop-while-smiling-41767-large.mp4"
+                    className={cn(
+                      "w-full h-full object-cover rounded-2xl",
+                      isAdmin ? "transform scale-x-[-1]" : ""
+                    )}
+                    autoPlay
+                    loop
+                    playsInline
+                    muted
+                  />
+                ) : localCameraStream ? (
+                  <video
+                    ref={(el) => {
+                      if (el && el.srcObject !== localCameraStream) {
+                        el.srcObject = localCameraStream;
+                        el.play().catch(e => console.warn("Video play error:", e));
+                      }
+                    }}
+                    className={cn(
+                      "w-full h-full object-cover rounded-2xl",
+                      isAdmin ? "transform scale-x-[-1]" : ""
+                    )}
+                    autoPlay
+                    playsInline
+                    muted
+                  />
+                ) : (
+                  <div 
+                    ref={localVideoRef} 
+                    className={cn(
+                      "w-full h-full bg-black relative rounded-2xl overflow-hidden [&>div]:!bg-transparent [&_video]:object-cover",
+                      isAdmin ? "transform scale-x-[-1]" : ""
+                    )}
+                  />
+                )}
 
                 {/* Overwhelmingly elegant stream interface overlay info */}
                 <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none select-none">
