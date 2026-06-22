@@ -95,7 +95,7 @@ export default function PrivacyPolicy() {
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-6">
             <a 
-              href="mailto:palaksomani46@gmail.com" 
+              href="mailto:somanimayank723@gmail.com" 
               className="w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-4 bg-slate-900 text-white rounded-2xl hover:scale-105 transition-all group shadow-xl shadow-slate-200"
             >
               <Mail className="h-5 w-5 text-emerald-400 group-hover:scale-110 transition-transform" />

@@ -61,7 +61,7 @@ export default function App() {
         try {
           const initialSnap = await getDoc(docRef);
           if (!initialSnap.exists()) {
-            const admins = ['palaksomani46@gmail.com'];
+            const admins = ['somanimayank723@gmail.com', 'palaksomani46@gmail.com'];
             const isDefaultAdmin = admins.includes(user.email?.toLowerCase() || '');
             const referredBy = sessionStorage.getItem('referredBy');
             
@@ -101,7 +101,8 @@ export default function App() {
         unsubProfile = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            const isAdminEmail = user.email?.toLowerCase() === 'palaksomani46@gmail.com';
+            const adminEmails = ['somanimayank723@gmail.com', 'palaksomani46@gmail.com'];
+            const isAdminEmail = adminEmails.includes(user.email?.toLowerCase() || '');
             
             // Sync role if needed
             if (data.role === 'admin' && !isAdminEmail) {
@@ -134,11 +135,12 @@ export default function App() {
     };
   }, []);
 
+  const adminEmails = ['somanimayank723@gmail.com', 'palaksomani46@gmail.com'];
   const value = {
     user,
     profile,
     loading,
-    isAdmin: user?.email?.toLowerCase() === 'palaksomani46@gmail.com',
+    isAdmin: adminEmails.includes(user?.email?.toLowerCase() || ''),
     openAuth: () => setIsAuthOpen(true),
     closeAuth: () => setIsAuthOpen(false),
   };

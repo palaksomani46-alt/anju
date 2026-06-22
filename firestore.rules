@@ -14,8 +14,9 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
       return isSignedIn() && (
-        request.auth.token.email.lowerCase() == 'palaksomani4646@gmail.com' ||
-        request.auth.token.email.lowerCase() == 'palaksomani46@gmail.com'
+        request.auth.token.email.lower() == 'palaksomani4646@gmail.com' ||
+        request.auth.token.email.lower() == 'palaksomani46@gmail.com' ||
+        request.auth.token.email.lower() == 'somanimayank723@gmail.com'
       ); 
     }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
@@ -31,7 +32,7 @@ service cloud.firestore {
         && data.email == request.auth.token.email
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
         && data.role in ['student', 'admin']
-        && (data.role == 'admin' ? (data.email.lowerCase() == 'palaksomani46@gmail.com' || data.email.lowerCase() == 'palaksomani4646@gmail.com') : true)
+        && (data.role == 'admin' ? (data.email.lower() == 'somanimayank723@gmail.com' || data.email.lower() == 'palaksomani46@gmail.com' || data.email.lower() == 'palaksomani4646@gmail.com') : true)
         && data.createdAt == request.time;
     }
 
@@ -143,6 +144,12 @@ service cloud.firestore {
         allow read: if isSignedIn() && (isAdmin() || isEnrolled(courseId));
         allow write: if isAdmin();
       }
+
+      match /presence/{presenceId} {
+        allow read: if isSignedIn() && (isAdmin() || isEnrolled(courseId));
+        allow write: if isSignedIn() && request.auth.uid == presenceId && (isAdmin() || isEnrolled(courseId));
+        allow delete: if isSignedIn() && request.auth.uid == presenceId;
+      }
     }
 
     match /enrollments/{enrollmentId} {
@@ -159,6 +166,12 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidCompletionRequest(incoming());
       allow update: if isAdmin() && incoming().diff(existing()).affectedKeys().hasAny(['status', 'certificateId', 'updatedAt']);
       allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if true; // Allows server-side or public dispatch
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
   }
 }

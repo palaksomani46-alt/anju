@@ -72,7 +72,7 @@ export default function TermsOfUse() {
         </section>
 
         <div className="text-center pt-8 border-t border-slate-100">
-          <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] font-black">Legal Inquiries: palaksomani46@gmail.com</p>
+          <p className="text-[10px] text-slate-400 uppercase tracking-[0.2em] font-black">Legal Inquiries: somanimayank723@gmail.com</p>
         </div>
       </motion.div>
     </div>

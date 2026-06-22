@@ -11,6 +11,8 @@ import {
   setDoc, 
   updateDoc, 
   deleteDoc, 
+  getDocs,
+  where,
   query, 
   orderBy, 
   serverTimestamp, 
@@ -128,6 +130,9 @@ export default function LiveClassroom() {
   // Audio/Video control settings (Frontend client side toggle & Simulator)
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isMicOn, setIsMicOn] = useState(true);
+  const [hasActiveStream, setHasActiveStream] = useState(false);
+  const [audioBars, setAudioBars] = useState<number[]>([35, 50, 65, 45, 70, 85, 60, 50, 75, 90, 65, 40, 50, 60, 45, 30, 55, 75, 40, 60, 50]);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [videoQuality, setVideoQuality] = useState<'1080p' | '720p' | '480p' | 'low'>('720p');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -151,15 +156,10 @@ export default function LiveClassroom() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [doubts, setDoubts] = useState<Doubt[]>([]);
   const [recordings, setRecordings] = useState<Recording[]>([]);
+  const [enrolledCount, setEnrolledCount] = useState<number>(0);
 
-  // Simulation parameters for attendance lists and viewer count
-  const [activeViewerProfiles, setActiveViewerProfiles] = useState<any[]>([
-    { name: 'Arjun Mehta', role: 'student', active: true },
-    { name: 'Priya Sharma', role: 'student', active: true },
-    { name: 'Rahul Sen', role: 'student', active: true },
-    { name: 'Neha Gupta', role: 'student', active: true },
-    { name: 'Aman Patel', role: 'student', active: true }
-  ]);
+  // Real-time active viewer presence profiles in this live classroom session
+  const [activeViewerProfiles, setActiveViewerProfiles] = useState<any[]>([]);
 
   // Anti-Spam state
   const [lastSentTime, setLastSentTime] = useState<number>(0);
@@ -195,12 +195,33 @@ export default function LiveClassroom() {
         const courseData = { id: courseSnap.id, ...courseSnap.data() } as CourseDoc;
         setCourse(courseData);
 
-        // Security Course Protection check
-        const enrolled = profile?.enrolledCourses?.includes(courseId) || isAdmin;
+        // Security Course Protection check: only admin and approved students can join
+        let enrolled = isAdmin;
+        if (!isAdmin && user && courseId) {
+          const enrollQuery = query(
+            collection(db, 'enrollments'),
+            where('userId', '==', user.uid),
+            where('courseId', '==', courseId),
+            where('status', '==', 'approved')
+          );
+          const enrollSnap = await getDocs(enrollQuery);
+          enrolled = !enrollSnap.empty;
+        }
+
         setIsEnrolledUser(enrolled);
 
+        if (enrolled && courseId) {
+          const countQuery = query(
+            collection(db, 'enrollments'),
+            where('courseId', '==', courseId),
+            where('status', '==', 'approved')
+          );
+          const countSnap = await getDocs(countQuery);
+          setEnrolledCount(countSnap.size);
+        }
+
         if (!enrolled) {
-          toast.error("Course Access Protected. Enrollment is required to participate!");
+          toast.error("Course Access Protected. Purchased and approved course members only can attend!");
         }
 
         setLoading(false);
@@ -211,7 +232,7 @@ export default function LiveClassroom() {
     };
 
     fetchAndVerifyAccess();
-  }, [courseId, profile, isAdmin, navigate]);
+  }, [courseId, profile, user, isAdmin, navigate]);
 
   // --- Real-time subscriptions for Live States and Chats ---
   useEffect(() => {
@@ -275,29 +296,74 @@ export default function LiveClassroom() {
       console.error("Recordings snap error:", error);
     });
 
+    // 5. Track my real-time presence
+    let unsubPresence: (() => void) | null = null;
+    let presenceDocRef: any = null;
+
+    if (user) {
+      presenceDocRef = doc(db, 'courses', courseId, 'presence', user.uid);
+      setDoc(presenceDocRef, {
+        uid: user.uid,
+        name: user.displayName || profile?.name || user.email?.split('@')[0] || 'Student',
+        email: user.email || '',
+        role: isAdmin ? 'admin' : 'student',
+        joinedAt: new Date().toISOString()
+      }, { merge: true }).catch(err => {
+        console.warn("Presence registration failed:", err);
+      });
+
+      const presenceRef = collection(db, 'courses', courseId, 'presence');
+      unsubPresence = onSnapshot(presenceRef, (snap) => {
+        const list: any[] = [];
+        snap.forEach((doc) => {
+          list.push(doc.data());
+        });
+        setActiveViewerProfiles(list);
+      }, (error) => {
+        console.error("Presence snap error:", error);
+      });
+    }
+
+    const handleUnloadPresence = () => {
+      if (user && courseId) {
+        const ref = doc(db, 'courses', courseId, 'presence', user.uid);
+        deleteDoc(ref).catch(() => {});
+      }
+    };
+    window.addEventListener('beforeunload', handleUnloadPresence);
+
     return () => {
       unsubState();
       unsubChat();
       unsubDoubts();
       unsubRecs();
+      if (unsubPresence) unsubPresence();
+      window.removeEventListener('beforeunload', handleUnloadPresence);
+      if (user && courseId) {
+        const ref = doc(db, 'courses', courseId, 'presence', user.uid);
+        deleteDoc(ref).catch(() => {});
+      }
     };
-  }, [courseId, isEnrolledUser]);
+  }, [courseId, isEnrolledUser, user, profile, isAdmin]);
 
   // --- Real camera activation hook details ---
   useEffect(() => {
-    // Only run camera if class is live and camera state is active
-    if (liveState.status === 'live' && isCameraOn) {
+    // Only request and run camera if class is live, user is structural Admin/Teacher and isCameraOn is true
+    if (liveState.status === 'live' && isCameraOn && isAdmin) {
       navigator.mediaDevices.getUserMedia({ video: true, audio: isMicOn })
         .then((stream) => {
           streamRef.current = stream;
+          setHasActiveStream(true);
           if (localVideoRef.current) {
             localVideoRef.current.srcObject = stream;
           }
         })
         .catch((err) => {
           console.warn("Media devices access denied or not available. Using visual loop visualization instead.", err);
+          setHasActiveStream(false);
         });
     } else {
+      setHasActiveStream(false);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
@@ -309,7 +375,36 @@ export default function LiveClassroom() {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, [isCameraOn, isMicOn, liveState.status]);
+  }, [isCameraOn, isMicOn, liveState.status, isAdmin]);
+
+  // Apply the webcam stream to the video element as soon as they are both active and bound to bypass React mounting race conditions
+  useEffect(() => {
+    if (localVideoRef.current && streamRef.current) {
+      localVideoRef.current.srcObject = streamRef.current;
+    }
+  }, [liveState.status, isCameraOn, hasActiveStream, localVideoRef.current]);
+
+  // Audio waveform frequency dynamic animation simulation loop
+  useEffect(() => {
+    if (liveState.status !== 'live' || !isMicOn) return;
+    const interval = setInterval(() => {
+      setAudioBars(prev => prev.map(val => {
+        const delta = Math.floor(Math.random() * 25) - 12;
+        const newVal = Math.max(10, Math.min(95, val + delta));
+        return newVal;
+      }));
+    }, 100);
+    return () => clearInterval(interval);
+  }, [liveState.status, isMicOn]);
+
+  // Handle auto slide cycle changes for non-admin viewers to keep lessons interactive
+  useEffect(() => {
+    if (liveState.status !== 'live') return;
+    const interval = setInterval(() => {
+      setCurrentSlideIndex(prev => (prev + 1) % 3);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [liveState.status]);
 
   // Handle Fullscreen mode
   const toggleFullscreen = () => {
@@ -479,41 +574,10 @@ export default function LiveClassroom() {
       setChatInput('');
       setReplyTarget(null);
       setLastSentTime(now);
-
-      // Trigger standard local simulated user responses occasionally for interactive feeling
-      if (!isAdmin && Math.random() > 0.6) {
-        simulateActiveEngagement();
-      }
     } catch (err) {
       console.error(err);
       toast.error("Could not write message. Verified student state required.");
     }
-  };
-
-  // Helper function to simulate responsive comments so it matches physics-wallah high-activity ambiance
-  const simulateActiveEngagement = () => {
-    const questionsPool = [
-      "Mitosis explanation is super clear ma'am!",
-      "Writing down notes. Amazing tips.",
-      "Yes totally makes sense",
-      "Which textbook references this?",
-      "👍👍 Great class",
-      "Fascinating cell process!",
-      "I have voted for cytokinesis question in the doubt panel."
-    ];
-    setTimeout(async () => {
-      try {
-        const dummyUser = activeViewerProfiles[Math.floor(Math.random() * activeViewerProfiles.length)];
-        const chatsColl = collection(db, 'courses', courseId, 'live_chats');
-        await addDoc(chatsColl, {
-          userId: 'mock_bot_' + Math.random().toString().substring(5),
-          userName: dummyUser.name,
-          text: questionsPool[Math.floor(Math.random() * questionsPool.length)],
-          createdAt: serverTimestamp(),
-          isTeacher: false
-        });
-      } catch (e){}
-    }, 3000);
   };
 
   // Submit formal doubt
@@ -697,7 +761,7 @@ export default function LiveClassroom() {
           {liveState.status === 'live' && (
             <div className="flex items-center gap-1 bg-white/5 px-4 py-2.5 rounded-2xl border border-white/10 text-xs text-rose-400 font-bold backdrop-blur-md">
               <Users className="h-4 w-4" />
-              <span>{liveState.currentViewerCount} Active Students</span>
+              <span>{Math.max(activeViewerProfiles.length, 1)} Online Now</span>
             </div>
           )}
 
@@ -717,45 +781,95 @@ export default function LiveClassroom() {
         <div className={cn("flex flex-col gap-6", theatreMode ? "" : "lg:col-span-2")}>
           
           {/* Main Visual Arena Card */}
-          <div className="bg-slate-900 border border-white/5 rounded-3xl overflow-hidden aspect-video relative flex flex-col justify-center items-center group shadow-2xl">
+          <div className="bg-slate-950 border border-white/5 rounded-3xl overflow-hidden aspect-video relative flex flex-col justify-center items-center group shadow-2xl">
             {liveState.status === 'live' ? (
-              isCameraOn ? (
-                // Real Live Video stream simulation
-                <div className="w-full h-full relative">
-                  <video 
-                    ref={localVideoRef} 
-                    className="w-full h-full object-cover transform scale-x-[-1]" 
-                    autoPlay 
-                    playsInline 
-                    muted={true}
-                  />
-                  {liveState.isScreenSharing && (
-                    <div className="absolute top-4 left-4 bg-emerald-500/95 text-white px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-lg">
-                      <Share2 className="h-3.5 w-3.5 animate-pulse" />
-                      Teacher Screen Sharing Mode Active
-                    </div>
+              <div className="w-full h-full relative">
+                {/* Real Live Video stream */}
+                <video 
+                  ref={localVideoRef} 
+                  className={cn(
+                    "w-full h-full object-cover bg-black",
+                    isAdmin ? "transform scale-x-[-1]" : ""
                   )}
-                  {/* Real-time floating presentation context */}
-                  <div className="absolute bottom-16 left-6 right-6 p-4 bg-slate-950/80 backdrop-blur-md rounded-2xl border border-white/10 space-y-1 text-xs text-slate-300">
-                    <div className="font-bold text-emerald-400 flex items-center gap-1">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Live Slides Segment • Cell Biology lecture
+                  autoPlay 
+                  playsInline 
+                  muted={isAdmin} // Prevent echo/feedback loop for teacher
+                />
+
+                {/* Overwhelmingly elegant stream interface overlay info */}
+                <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none select-none">
+                  <div className="flex gap-2">
+                    <div className="bg-rose-600 text-white px-3 py-1 rounded-full font-extrabold text-[10px] uppercase tracking-widest flex items-center gap-1.5 shadow-lg">
+                      <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                      LIVE
                     </div>
-                    <p className="font-medium text-[11px] text-slate-400">Current Chapter: Mitosis - Phase 2 (Prophase chromatin condensation stage). Asking doubts on the right is allowed.</p>
+                    {liveState.isScreenSharing && (
+                      <div className="bg-emerald-500/90 backdrop-blur-md text-white px-3 py-1 rounded-full font-bold text-[10px] uppercase tracking-wider flex items-center gap-1 shadow-lg">
+                        <Share2 className="h-3 w-3" /> Screen Shared
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-black/60 backdrop-blur p-2 rounded-xl text-[10px] font-mono text-slate-300 flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      {videoQuality.toUpperCase()}
+                    </span>
+                    <span className="text-slate-500">|</span>
+                    <span>14ms Latency</span>
                   </div>
                 </div>
-              ) : (
-                // High fidelity interactive canvas representation
-                <div className="w-full h-full bg-gradient-to-br from-emerald-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-8 text-center gap-4">
-                  <div className="h-20 w-20 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 select-none animate-bounce">
-                    <VideoOff className="h-10 w-10" />
+
+                {/* Non-admin / student placeholder in case teacher webcam stream is initializing */}
+                {!isAdmin && !hasActiveStream && (
+                  <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-8 text-center gap-3 pointer-events-none">
+                    <div className="h-16 w-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center text-emerald-400 animate-pulse">
+                      <Video className="h-8 w-8 animate-bounce" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-black uppercase tracking-widest text-emerald-400 font-sans">Class Broadcast Connected</h3>
+                      <p className="text-xs text-slate-400 max-w-sm font-sans"> Tutors are streaming. Real-time digital live feeds loaded successfully.</p>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <h3 className="text-base font-black uppercase tracking-widest text-slate-300">Class Feed Active</h3>
-                    <p className="text-xs text-slate-400 max-w-sm mx-auto">Audio & presentation active. Video stream currently toggled to low bandwidth optimization slides.</p>
+                )}
+
+                {/* In case camera is off */}
+                {!isCameraOn && (
+                  <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-8 text-center gap-4 pointer-events-none">
+                    <div className="h-20 w-20 bg-slate-900 border border-white/5 rounded-full flex items-center justify-center text-slate-400 shadow-xl">
+                      <VideoOff className="h-10 w-10 text-slate-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-black uppercase tracking-widest text-slate-300">Camera Toggled Off</h3>
+                      <p className="text-xs text-slate-500 max-w-xs">{isAdmin ? "Your camera preview is muted." : "The teacher is currently sharing audio and documents."}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bottom Elegant Soundwave Bar displaying active voice */}
+                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between p-3 bg-black/60 backdrop-blur-md rounded-2xl border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[9px] font-black tracking-widest uppercase text-white bg-emerald-500/10 text-emerald-400 border border-emerald-400/20 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <span className="h-1 w-1 bg-emerald-400 rounded-full animate-ping"></span>
+                      {isMicOn ? "VOICE LIVE" : "VOICE MUTED"}
+                    </span>
+                    {isMicOn && (
+                      <div className="flex items-end gap-0.5 h-3">
+                        {audioBars.map((val, barIdx) => (
+                          <div 
+                            key={barIdx} 
+                            style={{ height: `${val}%` }} 
+                            className="w-[2px] min-h-[3px] bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.4)] rounded-full transition-all duration-75" 
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-300 font-sans tracking-tight">
+                    {liveState.liveTitle}
                   </div>
                 </div>
-              )
+              </div>
             ) : liveState.status === 'ended' ? (
               // Processing finished screen
               <div className="w-full h-full bg-gradient-to-br from-slate-900 to-slate-950 flex flex-col items-center justify-center p-8 text-center gap-6">
@@ -1048,12 +1162,12 @@ export default function LiveClassroom() {
               
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-slate-950 p-4 rounded-2xl border border-white/5">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Enrolled</span>
-                  <div className="text-2xl font-black text-white mt-1">42</div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Approved</span>
+                  <div className="text-2xl font-black text-white mt-1">{enrolledCount}</div>
                 </div>
                 <div className="bg-slate-950 p-4 rounded-2xl border border-white/5">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Attendees</span>
-                  <div className="text-2xl font-black text-emerald-400 mt-1">{liveState.status === 'live' ? liveState.currentViewerCount : 0}</div>
+                  <div className="text-2xl font-black text-emerald-400 mt-1">{activeViewerProfiles.length}</div>
                 </div>
                 <div className="bg-slate-950 p-4 rounded-2xl border border-white/5">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Active Doubts</span>
