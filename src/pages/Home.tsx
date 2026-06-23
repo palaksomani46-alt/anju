@@ -71,7 +71,7 @@ export default function Home() {
   return (
     <div className="space-y-24 pb-20 relative">
       {/* Hero Section */}
-      <section className="relative flex min-h-[400px] md:min-h-[500px] lg:min-h-[600px] bg-gradient-to-br from-green-50 via-emerald-50 to-white px-6 md:px-12 items-center overflow-hidden py-16 md:py-24 rounded-[3rem] mt-4">
+      <section className="relative flex min-h-[400px] md:min-h-[500px] lg:min-h-[600px] bg-gradient-to-br from-green-50 via-emerald-50 to-white px-6 md:px-12 items-center overflow-hidden py-16 md:py-24 rounded-3xl md:rounded-[3rem] mt-4">
         <div className="container mx-auto flex flex-col lg:flex-row items-center gap-12 relative text-center lg:text-left">
           <div className="flex-1 z-10 w-full">
             <motion.div
@@ -287,7 +287,7 @@ export default function Home() {
       </section>
 
       {/* Testimonials */}
-      <section id="testimonials" className="px-6 md:px-12 py-24 bg-slate-50 rounded-[4rem]">
+      <section id="testimonials" className="px-6 md:px-12 py-24 bg-slate-50 rounded-3xl md:rounded-[4rem]">
         <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
           <div className="inline-block bg-emerald-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-emerald-600">Our Happy Students</div>
           <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Trusted by 1000+ Learners</h2>
@@ -302,7 +302,7 @@ export default function Home() {
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
               viewport={{ once: true }}
-              className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between"
+              className="bg-white p-6 md:p-8 rounded-3xl md:rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between"
             >
               <div className="space-y-6">
                 <div className="flex gap-1">

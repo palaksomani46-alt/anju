@@ -1882,7 +1882,7 @@ export default function Dashboard() {
       </AnimatePresence>
       
       {/* Hidden Certificate Template for PDF Generation */}
-      <div className="fixed top-0 left-0 opacity-0 pointer-events-none" aria-hidden="true">
+      <div className="fixed top-0 left-0 w-0 h-0 overflow-hidden opacity-0 pointer-events-none" aria-hidden="true">
         {certData && (
           <CertificateTemplate 
             userName={certData.userName}
