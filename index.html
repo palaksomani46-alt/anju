@@ -1,6 +1,37 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      (function() {
+        // Prevent and swallow benign WebSocket or HMR connection failures/rejections before any other script executes
+        const isViteSocketError = (errAny) => {
+          if (!errAny) return false;
+          const message = errAny.message || String(errAny || '');
+          const str = typeof errAny === 'string' ? errAny : (errAny.stack || errAny.reason || '');
+          const val = message.toLowerCase() + ' ' + str.toLowerCase();
+          return (
+            val.includes('websocket') ||
+            val.includes('vite') ||
+            val.includes('ws://') ||
+            val.includes('wss://')
+          );
+        };
+
+        window.addEventListener('unhandledrejection', function(event) {
+          if (isViteSocketError(event.reason)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('error', function(event) {
+          if (isViteSocketError(event.error || event.message || event)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Strictch Toppers | Elite Career Growth & Mentorship Platform</title>

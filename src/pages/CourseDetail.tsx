@@ -224,17 +224,6 @@ export default function CourseDetail() {
                   {isParticipant ? (
                     <div className="space-y-3">
                       <button 
-                        onClick={() => navigate(`/live/${id}`)}
-                        className="w-full relative py-4 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-sm tracking-wide shadow-xl shadow-red-200 active:scale-95 transition-all flex items-center justify-center gap-2 overflow-hidden group"
-                      >
-                        <span className="relative flex h-2.5 w-2.5">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-                        </span>
-                        <span>🔴 JOIN LIVE CLASSROOM</span>
-                      </button>
-                      
-                      <button 
                         onClick={() => navigate('/dashboard')}
                         className="w-full py-4 rounded-2xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-all text-sm"
                       >
