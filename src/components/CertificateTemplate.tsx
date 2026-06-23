@@ -61,11 +61,15 @@ export const CertificateTemplate: React.FC<CertificateTemplateProps> = ({
           </div>
           
           <div className="flex flex-col items-center space-y-2">
-            <img 
-              src="https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=https://strictch-toppers.app/verify/" 
-              className="w-16 h-16 opacity-20"
-              alt="QR Code"
-            />
+            <svg 
+              className="w-16 h-16 text-slate-800 opacity-20" 
+              viewBox="0 0 24 24" 
+              fill="currentColor"
+              role="img"
+              aria-label="QR Code Verification"
+            >
+              <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2V15H5zm10-2h4v2h-4v-2zm2 2h2v4h-2V15zm-2 2h2v2h-2v-2zm-2-2h2v2h-2v-2zm0 2H11v2h2v-2zm2 2h2v2h-2v-2zm-4-4h2v2H11v-2zm-6-2H3v2h2v-2zm2 0h2v2H7v-2zm4-2h2v2h-2V9zm2 2h2v2h-2v-2z" />
+            </svg>
             <span className="text-[8px] font-bold text-slate-300 uppercase">ID: {certificateId}</span>
           </div>
 

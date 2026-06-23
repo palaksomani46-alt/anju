@@ -19,12 +19,10 @@ const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 // 4-Hour Live Reminder Automated Check function
 async function checkAndTrigger4HourNotifications() {
   try {
-    console.log("[SERVER SERVICE] Scanning scheduled classes for 4-hour notification trigger...");
     const coursesRef = collection(db, 'courses');
     let coursesSnap;
     try {
       coursesSnap = await getDocs(coursesRef);
-      console.log(`[SERVER SERVICE] Successfully fetched ${coursesSnap.size} courses.`);
     } catch (err: any) {
       console.error("[SERVER SERVICE] Error fetching courses collection:", err);
       throw new Error("fetching courses: " + err.message);
