@@ -183,6 +183,130 @@ async function startServer() {
     res.json({ status: "ok", service: "Stricth Toppers Notification Server" });
   });
 
+  // Secure proxy to fetch dynamic Xirsys STUN/TURN ICE servers
+  app.get("/api/xirsys/ice", async (req, res) => {
+    try {
+      let ident = process.env.XIRSYS_IDENT || "palaksomani";
+      let secret = process.env.XIRSYS_SECRET || "740646fa-6fdc-11f1-9282-0242ac140003";
+      let channel = process.env.XIRSYS_CHANNEL || "channelv5dnpvyq";
+
+      // Try fetching credentials from Firestore system/xirsys config document first
+      try {
+        const docRef = doc(db, "system", "xirsys");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const config = docSnap.data();
+          if (config.ident) ident = config.ident;
+          if (config.secret) secret = config.secret;
+          if (config.channel) channel = config.channel;
+          console.log("[XIRSYS PROXY] Successfully loaded custom Xirsys credentials from Firestore system/xirsys.");
+        }
+      } catch (dbErr: any) {
+        console.warn("[XIRSYS PROXY] Could not fetch system/xirsys document from Firestore. Using env variables instead.", dbErr.message);
+      }
+
+      if (!ident || !secret) {
+        console.log("[XIRSYS PROXY] Xirsys credentials are not fully set in environment or Firestore. Falling back to public Google STUN.");
+        return res.json({
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" }
+          ],
+          source: "fallback_public_stun"
+        });
+      }
+
+      const auth = Buffer.from(`${ident}:${secret}`).toString("base64");
+      const xirsysUrl = `https://global.xirsys.net/_turn/${channel}`;
+
+      console.log(`[XIRSYS PROXY] Querying Xirsys dynamic TURN server endpoint for channel: ${channel}`);
+      const response = await fetch(xirsysUrl, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Basic ${auth}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ format: "urls" })
+      });
+
+      if (!response.ok) {
+        console.warn(`[XIRSYS PROXY] Xirsys API request failed with status: ${response.status}`);
+        throw new Error(`Xirsys API returned HTTP status ${response.status}`);
+      }
+
+      const data: any = await response.json();
+      if (data && data.s === "ok" && data.v && data.v.iceServers) {
+        console.log("[XIRSYS PROXY] Successfully fetched TURN/STUN credentials from Xirsys.");
+        return res.json({ 
+          iceServers: data.v.iceServers,
+          source: "xirsys_turn_live"
+        });
+      } else {
+        console.warn("[XIRSYS PROXY] Invalid response body from Xirsys API:", data);
+        throw new Error("Invalid response structure from Xirsys");
+      }
+    } catch (error: any) {
+      console.error("[XIRSYS PROXY] Error getting Xirsys iceServers:", error);
+      // Fail gracefully with fallback public STUN servers so live streaming doesn't crash completely
+      return res.json({
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" }
+        ],
+        source: "error_fallback_public_stun",
+        warning: error.message || "Failed to contact Xirsys servers"
+      });
+    }
+  });
+
+  // Explicit test endpoint for checking user-provided Xirsys credentials instantly
+  app.post("/api/xirsys/test-credentials", async (req, res) => {
+    try {
+      const { ident, secret, channel } = req.body || {};
+      if (!ident || !secret) {
+        return res.status(400).json({ status: "error", message: "Ident and Secret are required to run diagnostics." });
+      }
+
+      const auth = Buffer.from(`${ident}:${secret}`).toString("base64");
+      const targetChannel = channel || "default";
+      const xirsysUrl = `https://global.xirsys.net/_turn/${targetChannel}`;
+
+      console.log(`[XIRSYS TEST] Running credentials diagnostics for channel: ${targetChannel}`);
+      const response = await fetch(xirsysUrl, {
+        method: "PUT",
+        headers: {
+          "Authorization": `Basic ${auth}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ format: "urls" })
+      });
+
+      const text = await response.text();
+      let data: any;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        return res.json({ status: "error", message: "Response is not valid JSON.", raw: text });
+      }
+
+      if (response.ok && data && data.s === "ok") {
+        return res.json({
+          status: "success",
+          message: "Connection successful! Credentials are 100% correct.",
+          iceServers: data.v.iceServers
+        });
+      } else {
+        return res.json({
+          status: "error",
+          message: data.v || "Credentials verification failed.",
+          response: data
+        });
+      }
+    } catch (error: any) {
+      return res.status(500).json({ status: "error", message: error.message || "Could not connect to Xirsys API." });
+    }
+  });
+
   // Explicit API trigger endpoint for test and instant validation of the 4-hour notification cron process
   app.post("/api/admin/trigger-live-check", async (req, res) => {
     try {

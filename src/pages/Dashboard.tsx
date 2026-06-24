@@ -46,7 +46,11 @@ import {
   Video,
   Mic,
   Bell,
-  AlertCircle
+  AlertCircle,
+  Play,
+  Square,
+  RotateCcw,
+  Volume2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -96,6 +100,111 @@ export default function Dashboard() {
 
   // Student Live Subscriptions for purchased/enrolled courses
   const [enrolledLiveStates, setEnrolledLiveStates] = useState<Record<string, any>>({});
+
+  // Xirsys STUN/TURN Setup States for admins
+  const [xirsysIdent, setXirsysIdent] = useState('palaksomani');
+  const [xirsysSecret, setXirsysSecret] = useState('740646fa-6fdc-11f1-9282-0242ac140003');
+  const [xirsysChannel, setXirsysChannel] = useState('channelv5dnpvyq');
+  const [isSavingXirsys, setIsSavingXirsys] = useState(false);
+  const [isTestingXirsys, setIsTestingXirsys] = useState(false);
+  const [xirsysTestResult, setXirsysTestResult] = useState<{ status: 'success' | 'error' | 'warning', message: string } | null>(null);
+  const [showXirsysDetails, setShowXirsysDetails] = useState(false);
+
+  // Load saved Xirsys credentials on mount for Admin
+  useEffect(() => {
+    if (!isAdmin) return;
+    const fetchXirsysConfig = async () => {
+      try {
+        const docRef = doc(db, 'system', 'xirsys');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.ident) setXirsysIdent(data.ident);
+          if (data.secret) setXirsysSecret(data.secret);
+          if (data.channel) setXirsysChannel(data.channel);
+        }
+      } catch (err: any) {
+        console.warn("Could not load stored Xirsys config from Firestore:", err.message);
+      }
+    };
+    fetchXirsysConfig();
+  }, [isAdmin]);
+
+  const handleSaveXirsysConfig = async () => {
+    if (!xirsysIdent.trim() || !xirsysSecret.trim()) {
+      toast.error("Please enter both Xirsys Ident and Secret.");
+      return;
+    }
+
+    const toastId = toast.loading("Saving WebRTC signaling settings to cloud...");
+    setIsSavingXirsys(true);
+    setXirsysTestResult(null);
+
+    try {
+      const docRef = doc(db, 'system', 'xirsys');
+      await setDoc(docRef, {
+        ident: xirsysIdent.trim(),
+        secret: xirsysSecret.trim(),
+        channel: xirsysChannel.trim() || 'default',
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || 'admin'
+      });
+      toast.success("WebRTC credentials updated successfully!", { id: toastId });
+    } catch (err: any) {
+      console.error("Error saving Xirsys configuration:", err);
+      toast.error("Failed to save credentials: " + err.message, { id: toastId });
+    } finally {
+      setIsSavingXirsys(false);
+    }
+  };
+
+  const handleTestXirsysConfig = async () => {
+    if (!xirsysIdent.trim() || !xirsysSecret.trim()) {
+      toast.error("Enter Ident and Secret to execute diagnostics.");
+      return;
+    }
+
+    setIsTestingXirsys(true);
+    setXirsysTestResult(null);
+    const toastId = toast.loading("Executing secure WebRTC diagnostics...");
+
+    try {
+      const response = await fetch('/api/xirsys/test-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ident: xirsysIdent.trim(),
+          secret: xirsysSecret.trim(),
+          channel: xirsysChannel.trim() || 'default'
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.status === 'success') {
+        setXirsysTestResult({
+          status: 'success',
+          message: `Active STUN/TURN connection verified successfully! Received ${data.iceServers?.length || 0} secure ICE servers.`
+        });
+        toast.success("Xirsys credentials verified successfully!", { id: toastId });
+      } else {
+        setXirsysTestResult({
+          status: 'error',
+          message: `Verification Failed: ${data.message || 'The Xirsys API returned an authorization or connection error.'}`
+        });
+        toast.error("Xirsys connection check failed.", { id: toastId });
+      }
+    } catch (err: any) {
+      setXirsysTestResult({
+        status: 'error',
+        message: `Network Error: ${err.message || 'Failed to reach backend diagnostics server.'}`
+      });
+      toast.error("Failed to execute diagnostics.", { id: toastId });
+    } finally {
+      setIsTestingXirsys(false);
+    }
+  };
   
   // Real-time Dashboard notifications state
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -826,6 +935,16 @@ export default function Dashboard() {
                   <Gift className="h-4 w-4" />
                   <span>Referrals</span>
                 </button>
+                <button 
+                  onClick={() => setActiveTab('live_classes')}
+                  className={cn(
+                    "flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
+                    activeTab === 'live_classes' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-primary'
+                  )}
+                >
+                  <Video className="h-4 w-4 text-rose-500" />
+                  <span>Live Classes</span>
+                </button>
               </>
             ) : (
               <>
@@ -856,6 +975,16 @@ export default function Dashboard() {
                 >
                   <LayoutDashboard className="h-4 w-4" />
                   <span>Catalog</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('live_classes')}
+                  className={cn(
+                    "flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap",
+                    activeTab === 'live_classes' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-primary'
+                  )}
+                >
+                  <Video className="h-4 w-4 text-rose-500" />
+                  <span>Live Cockpit</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab('manage_users')}
@@ -1409,6 +1538,494 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'live_classes' && (
+            <motion.div 
+              key="live_classes"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-8"
+            >
+              {isAdmin ? (
+                /* --- TEACHER / ADMIN LIVE COCKPIT --- */
+                <div className="space-y-8">
+                  <div className="bg-slate-900 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="space-y-2">
+                      <h2 className="text-xl md:text-3xl font-black tracking-tight">Live Classes Control Cockpit</h2>
+                      <p className="text-slate-450 text-xs md:text-sm font-medium">Broadcast interactive high-fidelity video streams, schedule lectures, and manage student presence.</p>
+                    </div>
+                    <span className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[10px] uppercase font-black px-4 py-2 rounded-full tracking-widest animate-pulse flex items-center gap-1.5 shrink-0">
+                      <span className="h-2 w-2 rounded-full bg-rose-500"></span>
+                      Streaming Center
+                    </span>
+                  </div>
+
+                  {/* WebRTC TURN/STUN Configuration Box */}
+                  <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-6 rounded-[2rem] border border-slate-200/60 shadow-sm space-y-4">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-slate-900 text-white rounded-2xl">
+                          <Settings className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-sm md:text-base flex items-center gap-2">
+                            <span>WebRTC STUN/TURN Signaling Settings (Xirsys)</span>
+                            <span className="bg-emerald-50 text-emerald-700 text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider">Secure Cloud Backup</span>
+                          </h3>
+                          <p className="text-slate-500 text-xs font-semibold">Enter your Xirsys API credentials below to establish secure peer-to-peer audio/video connections.</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setShowXirsysDetails(!showXirsysDetails)}
+                        className="text-xs font-bold text-slate-650 bg-white hover:bg-slate-50 px-4 py-2 rounded-xl border border-slate-250 shadow-sm transition-colors"
+                      >
+                        {showXirsysDetails ? 'Hide Panel' : 'Configure Credentials'}
+                      </button>
+                    </div>
+
+                    {showXirsysDetails && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="pt-4 border-t border-slate-200/60 space-y-4 overflow-hidden"
+                      >
+                        <div className="grid md:grid-cols-3 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block px-1">Xirsys Ident (Username)</label>
+                            <input 
+                              type="text"
+                              placeholder="e.g. your-username"
+                              value={xirsysIdent}
+                              onChange={(e) => setXirsysIdent(e.target.value)}
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-xs font-bold text-slate-700 font-mono"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block px-1">Xirsys Secret (API Key)</label>
+                            <input 
+                              type="password"
+                              placeholder="e.g. your-api-key-token"
+                              value={xirsysSecret}
+                              onChange={(e) => setXirsysSecret(e.target.value)}
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-xs font-bold text-slate-700 font-mono"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block px-1">Xirsys Channel (Optional)</label>
+                            <input 
+                              type="text"
+                              placeholder="e.g. default"
+                              value={xirsysChannel}
+                              onChange={(e) => setXirsysChannel(e.target.value)}
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-xs font-bold text-slate-700 font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        {xirsysTestResult && (
+                          <div className={cn(
+                            "p-4 rounded-2xl border text-xs font-medium space-y-1 transition-all",
+                            xirsysTestResult.status === 'success' 
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-800" 
+                              : "bg-rose-50 border-rose-200 text-rose-800"
+                          )}>
+                            <p className="font-bold uppercase tracking-wider text-[10px]">
+                              {xirsysTestResult.status === 'success' ? '⚡ Diagnostic Verification Success' : '❌ Diagnostic Verification Failed'}
+                            </p>
+                            <p className="font-semibold leading-relaxed">{xirsysTestResult.message}</p>
+                          </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                          <button 
+                            onClick={handleSaveXirsysConfig}
+                            disabled={isSavingXirsys}
+                            className="flex-1 py-3 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 text-xs uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2"
+                          >
+                            {isSavingXirsys ? 'Saving...' : 'Save credentials'}
+                          </button>
+                          <button 
+                            onClick={handleTestXirsysConfig}
+                            disabled={isTestingXirsys}
+                            className="flex-1 py-3 bg-white text-slate-700 rounded-2xl font-bold hover:bg-slate-50 border border-slate-200 text-xs uppercase tracking-wider transition-all shadow-sm flex items-center justify-center gap-2"
+                          >
+                            {isTestingXirsys ? 'Testing connection...' : 'Test Connection / Verify'}
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* Course Selector card */}
+                  <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col md:flex-row items-center gap-4 justify-between">
+                    <div className="space-y-1">
+                      <h3 className="font-bold text-slate-850">Select Active Course for Live Broadcast</h3>
+                      <p className="text-slate-400 text-xs font-semibold">Select a course to set up scheduling, broadcast triggers, or upload past recordings.</p>
+                    </div>
+                    <select 
+                      value={selectedCourseForLive}
+                      onChange={(e) => setSelectedCourseForLive(e.target.value)}
+                      className="w-full md:w-96 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-705 focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all shadow-sm"
+                    >
+                      <option value="">-- Choose a course to broadcast --</option>
+                      {courses.map(course => (
+                        <option key={course.id} value={course.id}>{course.title}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {!selectedCourseForLive ? (
+                    <div className="text-center py-20 bg-slate-50 rounded-[3rem] border border-slate-100 border-dashed">
+                      <Video className="h-12 w-12 text-slate-300 mx-auto mb-4 animate-bounce" />
+                      <p className="text-slate-500 font-bold mb-2">No Course Selected</p>
+                      <p className="text-slate-400 text-xs max-w-sm mx-auto">Please select a course from the dropdown above to view live scheduling, alert students, or activate rooms.</p>
+                    </div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 gap-8">
+                      {/* Configuration Form Card */}
+                      <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+                        <div className="border-b border-slate-50 pb-4">
+                          <h4 className="font-bold text-lg text-slate-800">1. Configure Class Metadata</h4>
+                          <p className="text-slate-400 text-xs">Set up topics, timings, and custom study materials.</p>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block px-1">Session / Lecture Title</label>
+                            <input 
+                              type="text"
+                              placeholder="e.g. Masterclass: Advanced Trigonometry Tricks"
+                              value={liveStreamForm.title}
+                              onChange={(e) => setLiveStreamForm(prev => ({ ...prev, title: e.target.value }))}
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-xs font-bold text-slate-700"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block px-1">Scheduled Date & Time</label>
+                            <input 
+                              type="datetime-local"
+                              value={liveStreamForm.scheduledTime}
+                              onChange={(e) => setLiveStreamForm(prev => ({ ...prev, scheduledTime: e.target.value }))}
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-xs font-bold text-slate-700"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block px-1">Class Notes / Study PDF URL</label>
+                            <input 
+                              type="url"
+                              placeholder="e.g. https://drive.google.com/notes.pdf"
+                              value={liveStreamForm.notesUrl}
+                              onChange={(e) => setLiveStreamForm(prev => ({ ...prev, notesUrl: e.target.value }))}
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-xs font-bold text-slate-700"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block px-1">Timetable Outline / Description</label>
+                            <textarea 
+                              placeholder="e.g. 04:00 PM: Introduction, 04:15 PM: Important formulas, 05:00 PM: Q&A session"
+                              value={liveStreamForm.timetable}
+                              rows={3}
+                              onChange={(e) => setLiveStreamForm(prev => ({ ...prev, timetable: e.target.value }))}
+                              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all text-xs font-bold text-slate-700"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                          <button 
+                            onClick={() => handleSaveLiveSchedule(selectedCourseForLive)}
+                            disabled={isGenerating}
+                            className="flex-1 py-3.5 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 text-xs uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2"
+                          >
+                            <Calendar className="h-4 w-4" />
+                            <span>Save Schedule</span>
+                          </button>
+                          <button 
+                            onClick={() => handleSendScheduleNotice(selectedCourseForLive)}
+                            disabled={isGenerating}
+                            className="flex-1 py-3.5 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 text-xs uppercase tracking-wider transition-all shadow-md flex items-center justify-center gap-2"
+                          >
+                            <Bell className="h-4 w-4" />
+                            <span>Notify Students</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Room Controllers & Broadcaster Actions */}
+                      <div className="space-y-6">
+                        <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+                          <div className="border-b border-slate-50 pb-4">
+                            <h4 className="font-bold text-lg text-slate-800">2. Active Broadcast Signals</h4>
+                            <p className="text-slate-400 text-xs">Transition active server rooms and start broadcasting signals.</p>
+                          </div>
+
+                          {/* Room Status Indicator */}
+                          <div className={cn(
+                            "p-5 rounded-3xl border flex items-center justify-between gap-4",
+                            selectedLiveState?.status === 'live' 
+                              ? "bg-rose-50 border-rose-200 text-rose-800" 
+                              : selectedLiveState?.status === 'scheduled'
+                                ? "bg-amber-50 border-amber-200 text-amber-800"
+                                : "bg-slate-50 border-slate-200 text-slate-500"
+                          )}>
+                            <div className="space-y-1">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Classroom state</span>
+                              <p className="font-black text-sm uppercase tracking-wider flex items-center gap-2">
+                                {selectedLiveState?.status === 'live' && <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-ping" />}
+                                <span>{selectedLiveState?.status?.toUpperCase() || 'IDLE'}</span>
+                              </p>
+                            </div>
+                            <span className="text-xs font-bold text-slate-500">
+                              {selectedLiveState?.status === 'live' ? 'Students can join now' : 'Room is closed'}
+                            </span>
+                          </div>
+
+                          {/* Trigger buttons */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <button 
+                              onClick={() => handleChangeLiveStatus(selectedCourseForLive, 'live')}
+                              className="py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-md"
+                            >
+                              <Play className="h-3.5 w-3.5" />
+                              <span>Go Live 🔴</span>
+                            </button>
+                            <button 
+                              onClick={() => handleChangeLiveStatus(selectedCourseForLive, 'ended')}
+                              className="py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-md"
+                            >
+                              <Square className="h-3.5 w-3.5" />
+                              <span>End Lecture</span>
+                            </button>
+                          </div>
+
+                          <div className="pt-2">
+                            <button 
+                              onClick={() => handleChangeLiveStatus(selectedCourseForLive, 'idle')}
+                              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-650 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              <span>Reset Room to Idle</span>
+                            </button>
+                          </div>
+
+                          {/* Giant enter classroom button */}
+                          <div className="pt-4 border-t border-slate-50">
+                            <button 
+                              onClick={() => navigate(`/live/${selectedCourseForLive}`)}
+                              className={cn(
+                                "w-full py-4 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2.5 transition-all shadow-lg",
+                                selectedLiveState?.status === 'live'
+                                  ? "bg-emerald-500 text-white hover:bg-emerald-600 animate-pulse shadow-emerald-100"
+                                  : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                              )}
+                              disabled={selectedLiveState?.status !== 'live'}
+                            >
+                              <Video className="h-4 w-4" />
+                              <span>Enter Live Classroom 🎥</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Add Recording sub-card */}
+                        <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
+                          <div className="border-b border-slate-50 pb-2">
+                            <h4 className="font-bold text-sm text-slate-800">Archive Session Recording</h4>
+                            <p className="text-slate-400 text-[10px]">Publish the recorded video of the ended lecture for self-paced revision.</p>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <input 
+                              type="text" 
+                              id="rec_title"
+                              placeholder="e.g. Algebra Part 2 - Complete Recording" 
+                              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-150 rounded-xl text-xs font-semibold focus:outline-none text-slate-700"
+                            />
+                            <input 
+                              type="url" 
+                              id="rec_url"
+                              placeholder="e.g. Video stream link (MP4, YouTube, etc.)" 
+                              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-150 rounded-xl text-xs font-semibold focus:outline-none text-slate-700"
+                            />
+                            <button 
+                              onClick={async () => {
+                                const titleInp = document.getElementById('rec_title') as HTMLInputElement;
+                                const urlInp = document.getElementById('rec_url') as HTMLInputElement;
+                                if (!titleInp?.value || !urlInp?.value) {
+                                  toast.error("Please fill in both the recording title and video link!");
+                                  return;
+                                }
+                                try {
+                                  setIsGenerating(true);
+                                  const recsCol = collection(db, 'courses', selectedCourseForLive, 'recordings');
+                                  await addDoc(recsCol, {
+                                    title: titleInp.value.trim(),
+                                    videoUrl: urlInp.value.trim(),
+                                    createdAt: serverTimestamp()
+                                  });
+                                  titleInp.value = '';
+                                  urlInp.value = '';
+                                  toast.success("📼 Session Recording archived successfully!");
+                                } catch (e: any) {
+                                  toast.error("Failed to archive recording: " + e.message);
+                                } finally {
+                                  setIsGenerating(false);
+                                }
+                              }}
+                              className="w-full py-2.5 bg-slate-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-800 transition-all"
+                            >
+                              Publish Recording
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* --- STUDENT LIVE CLASSROOM PORTAL --- */
+                <div className="space-y-8">
+                  <div className="bg-slate-900 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="space-y-2">
+                      <h2 className="text-xl md:text-3xl font-black tracking-tight">Your Live Lectures</h2>
+                      <p className="text-slate-400 text-xs md:text-sm font-medium">Join real-time classrooms, download lecture handouts, and review lesson recordings.</p>
+                    </div>
+                    <span className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[10px] uppercase font-black px-4 py-2 rounded-full tracking-widest flex items-center gap-1.5 shrink-0">
+                      <span className="h-2 w-2 rounded-full bg-rose-500 animate-ping"></span>
+                      Student Hub
+                    </span>
+                  </div>
+
+                  {/* Active Live Classes List */}
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-black text-slate-800 border-b border-slate-100 pb-2">🔴 Active Stream Chambers</h3>
+                    
+                    {courses.filter(c => profile?.enrolledCourses?.includes(c.id) && enrolledLiveStates[c.id]?.status === 'live').length === 0 ? (
+                      <div className="text-center py-10 bg-slate-50 rounded-3xl border border-slate-100">
+                        <Video className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                        <p className="text-slate-400 text-xs font-bold">No sessions are currently broadcasting live.</p>
+                      </div>
+                    ) : (
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {courses.filter(c => profile?.enrolledCourses?.includes(c.id) && enrolledLiveStates[c.id]?.status === 'live').map(course => (
+                          <div key={course.id} className="bg-white p-6 rounded-[2rem] border-2 border-rose-400 shadow-xl flex flex-col gap-5 relative overflow-hidden group">
+                            {/* Live glowing badge */}
+                            <div className="absolute top-4 right-4 bg-rose-500 text-white font-black uppercase text-[9px] tracking-widest px-3 py-1 rounded-full animate-pulse flex items-center gap-1">
+                              <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                              <span>LIVE NOW</span>
+                            </div>
+
+                            <div className="space-y-2">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">{course.title}</span>
+                              <h4 className="font-bold text-lg text-slate-900 leading-tight">
+                                {enrolledLiveStates[course.id]?.liveTitle || 'Interactive Lecture Room'}
+                              </h4>
+                              {enrolledLiveStates[course.id]?.timetable && (
+                                <p className="text-slate-500 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100 line-clamp-2">
+                                  {enrolledLiveStates[course.id]?.timetable}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex flex-col gap-2.5 mt-auto">
+                              {enrolledLiveStates[course.id]?.notesUrl && (
+                                <a 
+                                  href={enrolledLiveStates[course.id]?.notesUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-center font-bold text-xs flex items-center justify-center gap-2 transition-all"
+                                >
+                                  <Download className="h-3.5 w-3.5" />
+                                  <span>Download Lesson Material</span>
+                                </a>
+                              )}
+                              <button 
+                                onClick={() => navigate(`/live/${course.id}`)}
+                                className="w-full py-3.5 bg-rose-600 text-white rounded-xl font-black uppercase tracking-widest text-xs hover:bg-rose-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-100 animate-pulse"
+                              >
+                                <Video className="h-4 w-4" />
+                                <span>Join Broadcast Lecture 🎥</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Scheduled Classes List */}
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-black text-slate-800 border-b border-slate-100 pb-2">🗓️ Upcoming Classes Timetable</h3>
+                    
+                    {courses.filter(c => profile?.enrolledCourses?.includes(c.id) && enrolledLiveStates[c.id]?.status === 'scheduled').length === 0 ? (
+                      <div className="text-center py-10 bg-slate-50 rounded-3xl border border-slate-100">
+                        <Calendar className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                        <p className="text-slate-400 text-xs font-bold">No upcoming classes have been scheduled yet.</p>
+                      </div>
+                    ) : (
+                      <div className="grid md:grid-cols-2 gap-6">
+                        {courses.filter(c => profile?.enrolledCourses?.includes(c.id) && enrolledLiveStates[c.id]?.status === 'scheduled').map(course => (
+                          <div key={course.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col gap-4">
+                            <div className="flex justify-between items-start">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{course.title}</span>
+                              <div className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1">
+                                <Clock className="h-3.5 w-3.5" />
+                                <span>SCHEDULED</span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <h4 className="font-bold text-base text-slate-800 leading-snug">
+                                {enrolledLiveStates[course.id]?.scheduledTitle || 'Lecture'}
+                              </h4>
+                              <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs font-bold text-slate-650">
+                                <Calendar className="h-4 w-4 text-emerald-550" />
+                                <span>
+                                  {enrolledLiveStates[course.id]?.scheduledTime ? new Date(enrolledLiveStates[course.id].scheduledTime).toLocaleString() : 'TBD'}
+                                </span>
+                              </div>
+                              {enrolledLiveStates[course.id]?.timetable && (
+                                <p className="text-slate-400 text-xs font-medium">
+                                  <strong>Plan:</strong> {enrolledLiveStates[course.id]?.timetable}
+                                </p>
+                              )}
+                            </div>
+
+                            {enrolledLiveStates[course.id]?.notesUrl && (
+                              <a 
+                                href={enrolledLiveStates[course.id]?.notesUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="mt-auto py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl text-center font-bold text-xs flex items-center justify-center gap-2 transition-all border border-slate-150"
+                              >
+                                <Download className="h-3.5 w-3.5 text-slate-400" />
+                                <span>Download Prep Notes</span>
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Past Recordings Archive */}
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-black text-slate-800 border-b border-slate-100 pb-2">📼 Saved Recordings (Archives)</h3>
+                    
+                    <div className="text-center py-10 bg-slate-50 rounded-3xl border border-slate-100">
+                      <Volume2 className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-slate-400 text-xs font-bold">Past session archives can be accessed directly inside each course modules section.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
 

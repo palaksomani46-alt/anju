@@ -169,6 +169,11 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /system/xirsys {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if true; // Allows server-side or public dispatch

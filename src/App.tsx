@@ -13,6 +13,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfUse from './pages/TermsOfUse';
 import Explore from './pages/Explore';
 import AuthModal from './components/AuthModal';
+import LiveClass from './pages/LiveClass';
 
 interface AuthContextType {
   user: User | null;
@@ -165,6 +166,10 @@ export default function App() {
               <Route 
                 path="/dashboard" 
                 element={user ? <Dashboard /> : <Navigate to="/" />} 
+              />
+              <Route 
+                path="/live/:courseId" 
+                element={user ? <LiveClass /> : <Navigate to="/" />} 
               />
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfUse />} />
