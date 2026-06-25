@@ -1030,7 +1030,7 @@ export default function Dashboard() {
               exit={{ opacity: 0, y: -10 }}
               className="space-y-8"
             >
-              <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 md:p-12 rounded-[2.5rem] text-white relative overflow-hidden">
+              <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 sm:p-8 md:p-12 rounded-3xl md:rounded-[2.5rem] text-white relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full translate-x-1/3 -translate-y-1/3 blur-3xl" />
                 <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
                   <div className="space-y-4">
@@ -1038,57 +1038,64 @@ export default function Dashboard() {
                       <Gift className="h-4 w-4" />
                       Referral Program
                     </div>
-                    <h2 className="text-3xl md:text-5xl font-black tracking-tight">Earn ₹500 for <span className="text-emerald-400">50 Referrals!</span></h2>
-                    <p className="text-slate-400 font-medium max-w-lg">Invite your friends to level up. When 50 friends join a course using your link, you get a massive ₹500 cash reward directly in your account!</p>
+                    <h2 className="text-2xl sm:text-3xl md:text-5xl font-black tracking-tight leading-tight">Earn ₹500 for <span className="text-emerald-400">50 Referrals!</span></h2>
+                    <p className="text-slate-400 font-medium text-xs sm:text-sm max-w-lg leading-relaxed">Invite your friends to level up. When 50 friends join a course using your link, you get a massive ₹500 cash reward directly in your account!</p>
                   </div>
-                    <div className="bg-white/10 backdrop-blur-md p-8 rounded-3xl border border-white/10 space-y-4 w-full md:w-auto">
-                      <div className="text-center">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Earned</div>
-                        <div className="text-4xl font-black text-emerald-400">
-                          ₹{referredEnrollments.filter(e => e.status === 'approved').length >= 50 ? 500 : 0}
-                        </div>
-                      </div>
-                      <div className="h-[1px] bg-white/5" />
-                      <div className="text-center">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Friends Joined</div>
-                        <div className="text-xl font-black text-white">{referredUsers.length}</div>
+                  <div className="bg-white/10 backdrop-blur-md p-6 sm:p-8 rounded-3xl border border-white/10 space-y-4 w-full md:w-auto shrink-0">
+                    <div className="text-center">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Earned</div>
+                      <div className="text-3xl sm:text-4xl font-black text-emerald-400">
+                        ₹{referredEnrollments.filter(e => e.status === 'approved').length >= 50 ? 500 : 0}
                       </div>
                     </div>
+                    <div className="h-[1px] bg-white/5" />
+                    <div className="text-center">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Friends Joined</div>
+                      <div className="text-lg sm:text-xl font-black text-white">{referredUsers.length}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-8">
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+                <div className="bg-white p-5 sm:p-8 rounded-3xl md:rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
                   <div className="space-y-2">
-                    <h3 className="text-xl font-bold text-slate-800">Your Sharing Link</h3>
-                    <p className="text-sm text-slate-500 font-medium">Send this link to your friends on WhatsApp or Facebook.</p>
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-800">Your Sharing Link</h3>
+                    <p className="text-xs sm:text-sm text-slate-500 font-medium">Send this link to your friends on WhatsApp or Facebook.</p>
                   </div>
                   
-                  <div className="flex gap-2">
-                    <div className="flex-1 bg-slate-50 border border-slate-100 p-4 rounded-2xl truncate text-xs font-mono text-slate-400">
+                  <div className="flex flex-col sm:flex-row gap-2.5">
+                    <div className="flex-1 bg-slate-50 border border-slate-100 p-4 rounded-2xl truncate text-xs font-mono text-slate-500 select-all min-w-0">
                       {window.location.origin}/?ref={user?.uid.substring(0, 8)}
                     </div>
-                  <div className="bg-slate-900 text-white p-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-slate-200 shrink-0 flex items-center justify-center cursor-pointer"
-                    onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/?ref=${user?.uid.substring(0, 8)}`);
-                        toast.success("Link copied! Now paste it on WhatsApp.");
-                    }}
-                  >
-                    <Copy className="h-5 w-5" />
-                  </div>
-                  <div className="bg-emerald-500 text-white p-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-200 shrink-0 flex items-center justify-center cursor-pointer"
-                    onClick={() => {
-                      if (navigator.share) {
-                        navigator.share({
-                          title: 'Stricth Toppers',
-                          text: 'Join me and learn new skills. Use my link to sign up!',
-                          url: `${window.location.origin}/?ref=${user?.uid.substring(0, 8)}`
-                        });
-                      }
-                    }}
-                  >
-                    <Share2 className="h-5 w-5" />
-                  </div>
+                    <div className="flex gap-2">
+                      <button className="flex-1 sm:flex-none bg-slate-900 text-white px-5 py-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-md shrink-0 flex items-center justify-center gap-2 cursor-pointer text-xs font-bold uppercase tracking-wider"
+                        onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/?ref=${user?.uid.substring(0, 8)}`);
+                            toast.success("Link copied! Now paste it on WhatsApp.");
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                        <span className="sm:hidden">Copy</span>
+                      </button>
+                      <button className="flex-1 sm:flex-none bg-emerald-500 text-white px-5 py-4 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-md shrink-0 flex items-center justify-center gap-2 cursor-pointer text-xs font-bold uppercase tracking-wider"
+                        onClick={() => {
+                          if (navigator.share) {
+                            navigator.share({
+                              title: 'Stricth Toppers',
+                              text: 'Join me and learn new skills. Use my link to sign up!',
+                              url: `${window.location.origin}/?ref=${user?.uid.substring(0, 8)}`
+                            });
+                          } else {
+                            navigator.clipboard.writeText(`${window.location.origin}/?ref=${user?.uid.substring(0, 8)}`);
+                            toast.success("Link copied! Share it with your friends.");
+                          }
+                        }}
+                      >
+                        <Share2 className="h-4 w-4" />
+                        <span className="sm:hidden">Share</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="pt-4 space-y-4">
@@ -1102,7 +1109,7 @@ export default function Dashboard() {
                       ].map((step, i) => (
                         <div key={i} className="flex items-center gap-4">
                           <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">{step.step}</div>
-                          <p className="text-sm font-medium text-slate-600">{step.text}</p>
+                          <p className="text-xs sm:text-sm font-medium text-slate-600">{step.text}</p>
                         </div>
                       ))}
                     </div>
@@ -1110,10 +1117,10 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-6">
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-xl font-bold text-slate-800">Your Referrals</h3>
-                      <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest">
+                  <div className="bg-white p-5 sm:p-8 rounded-3xl md:rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+                    <div className="flex justify-between items-center gap-2">
+                      <h3 className="text-lg sm:text-xl font-bold text-slate-800">Your Referrals</h3>
+                      <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest shrink-0">
                         {referredUsers.length} Total
                       </div>
                     </div>
@@ -1127,35 +1134,35 @@ export default function Dashboard() {
                           const isCompleted = refUser.completedCourses?.length > 0;
 
                           return (
-                            <div key={refUser.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-emerald-100 transition-all">
+                            <div key={refUser.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-emerald-100 transition-all">
                               <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 bg-white border border-slate-100 rounded-xl flex items-center justify-center font-bold text-slate-400 uppercase">
+                                <div className="h-10 w-10 bg-white border border-slate-100 rounded-xl flex items-center justify-center font-bold text-slate-400 uppercase shrink-0">
                                   {refUser.name?.charAt(0)}
                                 </div>
-                                <div>
-                                  <div className="font-bold text-sm text-slate-800">{refUser.name}</div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-sm text-slate-800 truncate">{refUser.name}</div>
                                   <div className="text-[10px] text-slate-400 font-medium">{formatDate(refUser.createdAt).split(',')[0]}</div>
                                 </div>
                               </div>
                               
-                              <div className="text-right">
+                              <div className="text-left sm:text-right shrink-0">
                                 {isCompleted ? (
-                                  <div className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                                  <div className="inline-flex px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[9px] font-black uppercase tracking-wider items-center gap-1">
                                     <CheckCircle className="h-3 w-3" />
                                     Completed
                                   </div>
                                 ) : hasApproved ? (
-                                  <div className="px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                                  <div className="inline-flex px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase tracking-wider items-center gap-1">
                                     <BookOpen className="h-3 w-3" />
                                     Enrolled
                                   </div>
                                 ) : isPending ? (
-                                  <div className="px-2.5 py-1 bg-amber-50 text-amber-600 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                                  <div className="inline-flex px-2.5 py-1 bg-amber-50 text-amber-600 rounded-lg text-[9px] font-black uppercase tracking-wider items-center gap-1">
                                     <Clock className="h-3 w-3" />
                                     Pending
                                   </div>
                                 ) : (
-                                  <div className="px-2.5 py-1 bg-slate-200 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                                  <div className="inline-flex px-2.5 py-1 bg-slate-200 text-slate-500 rounded-lg text-[9px] font-black uppercase tracking-wider">
                                     Signed Up
                                   </div>
                                 )}

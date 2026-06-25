@@ -672,12 +672,12 @@ export default function LiveClass() {
       </header>
 
       {/* Main Workspace Layout */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden relative">
         
         {/* Left Side: Video Canvas Main Player */}
-        <div className="flex-1 flex flex-col justify-between p-4 md:p-6 bg-slate-950 relative overflow-hidden">
+        <div className="flex-1 flex flex-col justify-between p-4 md:p-6 bg-slate-950 relative overflow-hidden min-h-[420px] sm:min-h-[500px] lg:min-h-0">
           
-          <div className="flex-1 bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 relative shadow-2xl flex items-center justify-center">
+          <div className="flex-1 bg-slate-900 rounded-3xl overflow-hidden border border-slate-800 relative shadow-2xl flex items-center justify-center min-h-[280px] sm:min-h-[380px] lg:min-h-0">
             {classMode === 'webrtc' ? (
               // WebRTC Custom Video Stream Frame
               <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-slate-950">
@@ -714,18 +714,18 @@ export default function LiveClass() {
                   ) : (
                     // Stream waiting placeholders
                     <div className="text-center space-y-6 max-w-sm px-6">
-                      <div className="relative mx-auto w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/30">
-                        <Video className="h-10 w-10 text-emerald-400 animate-pulse" />
+                      <div className="relative mx-auto w-16 h-16 sm:w-20 sm:h-20 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/30">
+                        <Video className="h-8 w-8 sm:h-10 sm:w-10 text-emerald-400 animate-pulse" />
                       </div>
                       <div className="space-y-2">
-                        <h3 className="font-bold text-lg text-white">Connecting to WebRTC Live Room...</h3>
-                        <p className="text-slate-400 text-xs leading-relaxed">
+                        <h3 className="font-bold text-sm sm:text-lg text-white">Connecting to WebRTC Live Room...</h3>
+                        <p className="text-slate-400 text-[11px] sm:text-xs leading-relaxed">
                           Please wait while the peer-to-peer streaming socket completes handshakes with your instructor's browser.
                         </p>
                       </div>
                       <button 
                         onClick={() => setClassMode('embed')}
-                        className="text-xs bg-slate-800 hover:bg-slate-700 px-4 py-2.5 rounded-2xl font-bold transition-all border border-slate-700"
+                        className="text-[11px] sm:text-xs bg-slate-800 hover:bg-slate-700 px-4 py-2.5 rounded-2xl font-bold transition-all border border-slate-700"
                       >
                         Trouble connecting? Try Jitsi Mirror
                       </button>
@@ -736,23 +736,23 @@ export default function LiveClass() {
             ) : (
               // Jitsi Mirror Video Frame Fallback
               <iframe 
-                src={`https://meet.jit.si/${courseId}`} 
-                allow="camera; microphone; display-capture; autoplay; clipboard-write; jitsi-meet" 
+                src={`https://meet.jit.si/${courseId}${!isAdmin ? '#config.startWithAudioMuted=true&config.startWithVideoMuted=true&config.prejoinPageEnabled=false' : ''}`} 
+                allow={isAdmin ? "camera; microphone; display-capture; autoplay; clipboard-write; jitsi-meet" : "autoplay; clipboard-write; jitsi-meet"} 
                 className="w-full h-full border-none bg-slate-900"
                 title="Class Video Stream Mirror"
               />
             )}
 
             {/* Attendance checklist verification alert indicator */}
-            <div className="absolute bottom-4 left-4 bg-slate-950/85 backdrop-blur-md border border-emerald-500/30 px-3.5 py-2 rounded-2xl flex items-center gap-2 text-xs text-slate-300">
+            <div className="absolute bottom-4 left-4 right-4 sm:right-auto bg-slate-950/85 backdrop-blur-md border border-emerald-500/30 px-3.5 py-2.5 rounded-2xl flex items-center gap-2 text-[10px] sm:text-xs text-slate-300">
               <Check className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span>Real-time enrollment attendance logged: <strong className="text-white">{profile?.name}</strong></span>
+              <span className="truncate">Real-time attendance logged: <strong className="text-white">{profile?.name}</strong></span>
             </div>
           </div>
 
           {/* Bottom Controls Panel */}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-4 shrink-0 bg-slate-900/40 p-4 rounded-3xl border border-slate-800">
-            <div className="flex items-center gap-3">
+          <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0 bg-slate-900/40 p-4 rounded-3xl border border-slate-800">
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-center">
               {isAdmin ? (
                 <>
                   <button 
@@ -785,33 +785,26 @@ export default function LiveClass() {
                   </button>
                 </>
               ) : (
-                // Student raises hand
-                <button 
-                  onClick={handleRaiseHand}
-                  className={cn(
-                    "px-6 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all active:scale-95 text-sm",
-                    participants.find(p => p.id === user?.uid)?.raisedHand 
-                      ? "bg-rose-500 text-white font-bold" 
-                      : "bg-slate-800 hover:bg-slate-700 text-emerald-400"
-                  )}
-                >
-                  <Hand className="h-5 w-5" />
-                  <span>{participants.find(p => p.id === user?.uid)?.raisedHand ? "Lower Hand" : "Raise Hand ✋"}</span>
-                </button>
+                // Student view-and-chat notice
+                <div className="flex items-center gap-2 px-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-xs text-slate-400 font-bold select-none w-full justify-center">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <span>View & Listen Mode • Ask Doubts in Live Chat 💬</span>
+                </div>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-center sm:justify-end">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Video Signal Engine:</span>
-              <span className="text-slate-300 font-bold text-xs bg-slate-900 border border-slate-800 px-3 py-1 rounded-xl">
-                WebRTC Mesh + STUN Fallback
+              <span className="text-slate-300 font-bold text-xs bg-slate-900 border border-slate-800 px-3 py-1 rounded-xl flex items-center gap-1.5 shrink-0">
+                {!isAdmin && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                {isAdmin ? "WebRTC Broadcast Node" : "Listening Only • Participate via Live Chat"}
               </span>
             </div>
           </div>
         </div>
 
         {/* Right Side: Interactive Sidebar Panel (Chat + Participants) */}
-        <aside className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-900 flex flex-col shrink-0 overflow-hidden relative">
+        <aside className="w-full lg:w-96 h-[500px] lg:h-auto border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-900 flex flex-col shrink-0 overflow-hidden relative">
           <div className="flex border-b border-slate-800 bg-slate-950 p-2 gap-2">
             <button 
               onClick={() => setActiveSidebarTab('chat')}
@@ -914,8 +907,12 @@ export default function LiveClass() {
                       </div>
                       <div className="min-w-0">
                         <p className="font-bold text-slate-200 truncate">{p.name}</p>
-                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">
-                          {p.role === 'admin' ? 'Teacher 🎓' : 'Learner'}
+                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1">
+                          {p.role === 'admin' ? (
+                            <span className="text-emerald-400">Broadcaster 🎓</span>
+                          ) : (
+                            <span className="text-slate-400">Chat Only 💬</span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -941,13 +938,6 @@ export default function LiveClass() {
                               Lower
                             </button>
                           )}
-                          <button 
-                            onClick={() => handleMuteParticipant(p.id)}
-                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-rose-400 rounded-xl transition-all"
-                            title="Mute voice access"
-                          >
-                            <MicOff className="h-3.5 w-3.5" />
-                          </button>
                         </div>
                       )}
                     </div>
